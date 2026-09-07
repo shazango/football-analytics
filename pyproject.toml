@@ -1,0 +1,31 @@
+[project]
+name = "football-analytics-engine"
+version = "0.1.0"
+description = "Analytics engine for football clubs and agents below the elite tier: derived metrics and reporting on open data."
+requires-python = ">=3.12"
+dependencies = [
+    "kloppy",
+    "socceraction",
+    "mplsoccer",
+    "polars",
+    "pandas",
+    "duckdb",
+    "statsmodels",
+    "scikit-learn",
+    "jinja2",
+    "weasyprint",
+    "xlsxwriter",
+    "pyyaml",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
