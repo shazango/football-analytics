@@ -45,22 +45,3 @@ docs/metrics/  # methodology page per metric (required before a metric "counts a
 tests/
   fixtures/    # a small committed slice of open data, used instead of live downloads
 ```
-
-## Status
-
-Following the brief's build order (§11). Current progress:
-
-- [x] 1. Repo skeleton, `uv`, Makefile, licences file
-- [x] 2. StatsBomb ingest via kloppy into DuckDB; canonical schema
-- [x] 3. Derive `game_state` and `possession_id` during ingest
-- [x] 4. Deterministic identity resolution
-- [x] 5. Metric definition loader and runtime, with versioning and input hashing
-- [x] 6. Foundation layer plus the three adjustments
-- [x] 7. Benchmark sets
-- [x] 8. `psxg_ga` with confidence bands and defensive context
-- [ ] 9. `throw_in_profile`
-- [ ] 10. `supply_attribution`
-- [ ] 11. `line_break_value`, validated against Impect open data
-- [ ] 12. `game_state_response`
-- [ ] 13. Renderers: JSON, then XLSX, then PDF
-- [ ] 14. SkillCorner ingest into `physical_sample`
