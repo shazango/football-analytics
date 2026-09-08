@@ -1,0 +1,10 @@
+id: duels_won
+version: 1
+title: Duels won
+applies_to: all
+requires:
+  - event.type
+  - event.outcome
+min_sample: 450
+adjustments: [per_90, possession, opposition_strength]
+methodology: docs/metrics/duels_won.md

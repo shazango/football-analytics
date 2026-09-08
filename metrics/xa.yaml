@@ -1,0 +1,11 @@
+id: xa
+version: 1
+title: Expected assists
+applies_to: all
+requires:
+  - pass.shot_assist
+  - pass.assisted_shot_id
+  - shot.xg
+min_sample: 450
+adjustments: [per_90, possession, opposition_strength]
+methodology: docs/metrics/xa.md

@@ -1,0 +1,10 @@
+id: pass_completion_defensive_third
+version: 1
+title: Pass completion, defensive third
+applies_to: all
+requires:
+  - event.location
+  - event.outcome
+min_sample: 20
+adjustments: []
+methodology: docs/metrics/pass_completion_by_third.md

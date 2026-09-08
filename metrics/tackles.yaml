@@ -1,0 +1,10 @@
+id: tackles
+version: 1
+title: Tackles
+applies_to: all
+requires:
+  - event.type
+  - duel.type
+min_sample: 450
+adjustments: [per_90, possession, opposition_strength]
+methodology: docs/metrics/tackles.md

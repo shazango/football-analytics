@@ -1,0 +1,11 @@
+id: aerials
+version: 1
+title: Aerial duels won
+applies_to: all
+requires:
+  - event.type
+  - duel.type
+  - event.outcome
+min_sample: 450
+adjustments: [per_90, possession, opposition_strength]
+methodology: docs/metrics/aerials.md

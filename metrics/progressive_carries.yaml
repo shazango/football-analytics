@@ -1,0 +1,10 @@
+id: progressive_carries
+version: 1
+title: Progressive carries
+applies_to: all
+requires:
+  - event.location
+  - event.end_location
+min_sample: 450
+adjustments: [per_90, possession, opposition_strength]
+methodology: docs/metrics/progressive_passes.md

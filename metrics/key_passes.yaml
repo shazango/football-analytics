@@ -1,0 +1,9 @@
+id: key_passes
+version: 1
+title: Key passes
+applies_to: all
+requires:
+  - pass.shot_assist
+min_sample: 450
+adjustments: [per_90, possession, opposition_strength]
+methodology: docs/metrics/key_passes.md

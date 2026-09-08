@@ -1,0 +1,10 @@
+id: pass_completion_middle_third
+version: 1
+title: Pass completion, middle third
+applies_to: all
+requires:
+  - event.location
+  - event.outcome
+min_sample: 20
+adjustments: []
+methodology: docs/metrics/pass_completion_by_third.md

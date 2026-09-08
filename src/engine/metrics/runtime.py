@@ -49,6 +49,7 @@ def compute_and_store(
     impl = get_implementation(definition.id)
     result = impl(
         con,
+        definition=definition,
         person_id=person_id,
         competition_id=competition_id,
         season=season,

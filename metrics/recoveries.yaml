@@ -1,0 +1,9 @@
+id: recoveries
+version: 1
+title: Ball recoveries
+applies_to: all
+requires:
+  - event.type
+min_sample: 450
+adjustments: [per_90, possession, opposition_strength]
+methodology: docs/metrics/recoveries.md

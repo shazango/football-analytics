@@ -11,6 +11,10 @@ kloppy's parsed events during the same ingest pass — see
 `qualifiers` and `freeze_frame` are built from kloppy's own normalised
 Qualifier/Frame objects, not from StatsBomb's raw JSON sub-objects — that
 keeps the "derived values only" rule even for semi-structured event detail.
+The one exception that reaches into raw_event is xA (build order step 6):
+StatsBomb links a shot-assist pass to the shot it created via an id
+reference, which kloppy doesn't normalise; we resolve that link at ingest
+and store the resulting xG value, not the id itself.
 """
 
 import json
@@ -84,7 +88,7 @@ def _person_rows(lineup_json: list[dict]) -> list[tuple]:
     return rows
 
 
-def _serialize_qualifiers(event) -> dict | None:
+def _serialize_qualifiers(event, shot_xg_by_id: dict[str, float] | None = None) -> dict | None:
     out = {}
     for q in event.qualifiers or []:
         key = type(q).__name__.replace("Qualifier", "")
@@ -92,6 +96,14 @@ def _serialize_qualifiers(event) -> dict | None:
         out[key] = value.name if hasattr(value, "name") else value
     for stat in getattr(event, "statistics", None) or []:
         out[stat.name] = stat.value
+    # xA: not a kloppy-native field. StatsBomb links a shot-assist pass to
+    # the shot it created via assisted_shot_id; we resolve that link once
+    # here and store the *value* (the linked shot's xG), not the raw id —
+    # keeps the "derived values only, no raw payloads" rule (§12).
+    if shot_xg_by_id and event.raw_event.get("pass", {}).get("shot_assist"):
+        assisted_shot_id = event.raw_event["pass"].get("assisted_shot_id")
+        if assisted_shot_id in shot_xg_by_id:
+            out["xA"] = shot_xg_by_id[assisted_shot_id]
     return out or None
 
 
@@ -120,7 +132,10 @@ def _serialize_freeze_frame(event) -> list[dict] | None:
 
 
 def _end_point(event):
-    for attr in ("end_coordinates", "result_coordinates"):
+    # Different kloppy event classes name their end-location field
+    # differently: CarryEvent/ShotEvent use end_coordinates/result_coordinates,
+    # but PassEvent uses receiver_coordinates (the receiving player's spot).
+    for attr in ("end_coordinates", "result_coordinates", "receiver_coordinates"):
         point = getattr(event, attr, None)
         if point is not None:
             return point
@@ -169,6 +184,13 @@ def _event_rows(ds, fixture_id: int) -> list[tuple]:
         p.id: p.start_timestamp.total_seconds() * 1000 for p in ds.metadata.periods
     }
     possession_and_state = _possession_and_state(ds, fixture_id)
+    shot_xg_by_id = {
+        event.event_id: stat.value
+        for event in ds.events
+        if event.event_type.name == "SHOT"
+        for stat in (event.statistics or [])
+        if stat.name == "xG"
+    }
     rows = []
     for sequence, (event, (possession_id, game_state)) in enumerate(
         zip(ds.events, possession_and_state)
@@ -189,7 +211,7 @@ def _event_rows(ds, fixture_id: int) -> list[tuple]:
                 end_point.y if end_point else None,
                 event.result.name if event.result else None,
                 possession_id,
-                json.dumps(_serialize_qualifiers(event)),
+                json.dumps(_serialize_qualifiers(event, shot_xg_by_id)),
                 game_state,
                 json.dumps(_serialize_freeze_frame(event)),
             )

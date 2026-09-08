@@ -1,0 +1,10 @@
+id: xg
+version: 1
+title: Expected goals
+applies_to: all
+requires:
+  - event.type
+  - shot.xg
+min_sample: 450
+adjustments: [per_90, possession, opposition_strength]
+methodology: docs/metrics/xg.md

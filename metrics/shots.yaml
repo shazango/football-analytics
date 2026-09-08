@@ -1,0 +1,9 @@
+id: shots
+version: 1
+title: Shots
+applies_to: all
+requires:
+  - event.type
+min_sample: 450
+adjustments: [per_90, possession, opposition_strength]
+methodology: docs/metrics/shots.md

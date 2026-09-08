@@ -64,6 +64,18 @@ def test_shots_carry_freeze_frames(con):
         assert any(p["keeper"] for p in frame), "every shot faces a keeper"
 
 
+def test_shot_assist_passes_carry_xa(con):
+    rows = con.execute(
+        "select qualifiers from event where fixture_id = ? and type = 'PASS' "
+        "and json_extract_string(qualifiers, '$.Pass') = 'SHOT_ASSIST'",
+        [MATCH_ID],
+    ).fetchall()
+    assert len(rows) == 22  # hand-checked against the fixture (see step 6)
+    for (raw,) in rows:
+        xa = json.loads(raw).get("xA")
+        assert xa is not None and xa > 0
+
+
 def test_appearance_minutes_within_match_length(con):
     rows = con.execute(
         "select minutes, start_min, end_min from appearance where fixture_id = ?",
@@ -100,6 +112,21 @@ def test_coordinates_normalised_0_100(con):
     lo_x, hi_x, lo_y, hi_y = row
     assert 0 <= lo_x and hi_x <= 100
     assert 0 <= lo_y and hi_y <= 100
+
+
+def test_completed_passes_have_end_coordinates(con):
+    # Regression: PassEvent's end location is kloppy's `receiver_coordinates`,
+    # not `end_coordinates`/`result_coordinates` — easy to miss since those
+    # names cover carries/shots. A completed pass with no end point silently
+    # breaks anything geometric (e.g. progressive-pass detection).
+    row = con.execute(
+        "select count(*), count(end_x) from event "
+        "where fixture_id = ? and type = 'PASS' and outcome = 'COMPLETE'",
+        [MATCH_ID],
+    ).fetchone()
+    total, with_end = row
+    assert total > 0
+    assert with_end == total
 
 
 def test_possession_and_game_state(con):
