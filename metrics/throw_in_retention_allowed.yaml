@@ -1,0 +1,9 @@
+id: throw_in_retention_allowed
+version: 1
+title: Opposition throw-in retention allowed (defensive mirror)
+applies_to: all
+requires:
+  - pass.set_piece
+  - possession_id
+min_sample: 20
+methodology: docs/metrics/throw_in_profile.md

@@ -1,0 +1,10 @@
+id: throw_in_distance
+version: 1
+title: Mean throw-in distance
+applies_to: all
+requires:
+  - pass.set_piece
+  - event.location
+  - event.end_location
+min_sample: 20
+methodology: docs/metrics/throw_in_profile.md

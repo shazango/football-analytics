@@ -1,0 +1,10 @@
+id: throw_in_territory_gained
+version: 1
+title: Mean territory gained per throw-in
+applies_to: all
+requires:
+  - pass.set_piece
+  - event.location
+  - event.end_location
+min_sample: 20
+methodology: docs/metrics/throw_in_profile.md

@@ -1,0 +1,10 @@
+id: throw_in_aerial_win_rate
+version: 1
+title: Throw-in aerial duel win rate (contested throws only)
+applies_to: all
+requires:
+  - pass.set_piece
+  - possession_id
+  - duel.type
+min_sample: 5
+methodology: docs/metrics/throw_in_profile.md

@@ -1,0 +1,10 @@
+id: throw_in_retention_under_pressure
+version: 1
+title: Throw-in retention under pressure (headline)
+applies_to: all
+requires:
+  - pass.set_piece
+  - possession_id
+  - event.type
+min_sample: 15
+methodology: docs/metrics/throw_in_profile.md
