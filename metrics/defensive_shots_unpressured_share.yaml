@@ -1,0 +1,8 @@
+id: defensive_shots_unpressured_share
+version: 1
+title: Share of shots faced taken unpressured (defensive context)
+applies_to: goalkeeper
+requires:
+  - shot.under_pressure
+min_sample: 40
+methodology: docs/metrics/defensive_context.md

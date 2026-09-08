@@ -139,11 +139,11 @@ def roster_con(con):
     con.execute("insert into appearance values (1, 200, 1, 90, 0, 90)")
     con.execute("insert into appearance values (1, 201, 1, 90, 0, 90)")
     con.execute(
-        "insert into event values (1, 0, 0, 1, 'SHOT', 200, 1, 50, 50, NULL, NULL, "
+        "insert into event values (1, 0, 0, 1, 'SHOT', 200, 1, 50, 50, NULL, NULL, NULL, "
         "'OFF_TARGET', NULL, NULL, NULL, NULL)"
     )
     con.execute(
-        "insert into event values (1, 1, 1000, 1, 'PASS', 201, 1, 10, 50, 15, 50, "
+        "insert into event values (1, 1, 1000, 1, 'PASS', 201, 1, 10, 50, 15, 50, NULL, "
         "'COMPLETE', NULL, NULL, NULL, NULL)"
     )
     return con

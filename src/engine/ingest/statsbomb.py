@@ -222,6 +222,7 @@ def _event_rows(ds, fixture_id: int) -> list[tuple]:
                 event.coordinates.y if event.coordinates else None,
                 end_point.x if end_point else None,
                 end_point.y if end_point else None,
+                getattr(end_point, "z", None),
                 event.result.name if event.result else None,
                 possession_id,
                 json.dumps(_serialize_qualifiers(event, shot_xg_by_id)),
@@ -296,7 +297,7 @@ def ingest_competition(
         )
         con.executemany(
             "INSERT OR IGNORE INTO event VALUES "
-            "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             _event_rows(ds, mid),
         )
 

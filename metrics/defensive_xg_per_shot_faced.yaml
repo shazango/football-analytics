@@ -1,0 +1,8 @@
+id: defensive_xg_per_shot_faced
+version: 1
+title: Mean xG per shot faced (defensive context)
+applies_to: goalkeeper
+requires:
+  - shot.xg
+min_sample: 40
+methodology: docs/metrics/defensive_context.md

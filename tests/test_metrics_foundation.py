@@ -39,10 +39,10 @@ def _insert_event(con, fixture_id, seq, team_id, type_, outcome=None, loc=None, 
     lx, ly = loc or (None, None)
     ex, ey = end or (None, None)
     con.execute(
-        "insert into event values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "insert into event values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             fixture_id, seq, seq * 1000, 1, type_, actor, team_id,
-            lx, ly, ex, ey, outcome, None,
+            lx, ly, ex, ey, None, outcome, None,
             json.dumps(qualifiers) if qualifiers else None, None, None,
         ],
     )

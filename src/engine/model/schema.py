@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS event (
     location_y DOUBLE,
     end_x DOUBLE,
     end_y DOUBLE,
+    end_z DOUBLE,  -- shot height in the goal frame; NULL for every other event type
     outcome VARCHAR,
     possession_id BIGINT,
     qualifiers JSON,

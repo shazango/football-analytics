@@ -1,0 +1,8 @@
+id: defensive_shots_central_share
+version: 1
+title: Share of shots faced from central zones (defensive context)
+applies_to: goalkeeper
+requires:
+  - shot.location
+min_sample: 40
+methodology: docs/metrics/defensive_context.md

@@ -51,6 +51,24 @@ def test_event_count_and_types(con):
     assert shots == 29  # matches the shot count in tests/fixtures/statsbomb
 
 
+def test_on_target_shots_have_end_z(con):
+    # Height in the goal frame — needed for psxg_ga (step 8). Only shots get
+    # a 3D end coordinate from kloppy; everything else stays NULL.
+    rows = con.execute(
+        "select end_z from event where fixture_id = ? and type = 'SHOT' "
+        "and outcome in ('SAVED', 'GOAL')",
+        [MATCH_ID],
+    ).fetchall()
+    assert len(rows) > 0
+    assert all(z is not None and z >= 0 for (z,) in rows)
+
+    non_shot_z = con.execute(
+        "select count(*) from event where fixture_id = ? and type != 'SHOT' and end_z is not null",
+        [MATCH_ID],
+    ).fetchone()[0]
+    assert non_shot_z == 0
+
+
 def test_shots_carry_freeze_frames(con):
     # The fixture keeps 360 frames for every shot (see how it was built).
     rows = con.execute(

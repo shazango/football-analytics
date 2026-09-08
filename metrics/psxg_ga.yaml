@@ -1,0 +1,13 @@
+id: psxg_ga
+version: 1
+title: Post-shot expected goals minus goals allowed
+applies_to: goalkeeper
+requires:
+  - shot.location
+  - shot.end_location
+  - shot.body_part
+  - freeze_frame
+min_sample: 40
+adjustments: [per_90]
+confidence: bootstrap
+methodology: docs/metrics/psxg_ga.md
