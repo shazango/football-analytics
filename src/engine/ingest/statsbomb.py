@@ -26,6 +26,9 @@ from kloppy.domain import Ground, ShotResult
 
 from engine.ingest import _kloppy_patches  # noqa: F401 (applies patch on import)
 from engine.ingest.download import DEFAULT_DATA_DIR, download_competition
+from engine.metrics import foundation, line_break  # noqa: F401 (line_break registers)
+from engine.metrics.benchmark import FOUNDATION_STAT_IDS, compute_roster_metrics
+from engine.metrics.definitions import load_all
 
 
 def _competition_row(data_dir: Path, competition_id: int, season_id: int) -> tuple:
@@ -102,11 +105,20 @@ def _insert_persons(con, rows: list[tuple]) -> None:
 
 
 def _serialize_qualifiers(event, shot_xg_by_id: dict[str, float] | None = None) -> dict | None:
-    out = {}
+    # Qualifier values are collected into a list per key, not overwritten:
+    # kloppy can legitimately attach more than one qualifier of the same
+    # class to a single event (e.g. a StatsBomb 50/50 event's Duel
+    # qualifier is both LOOSE_BALL and GROUND). A last-value-wins scalar
+    # assignment here silently drops that second qualifier and made a
+    # 50/50 loose-ball contest indistinguishable from a tackle (Duel=
+    # GROUND either way) — see qualifier_contains in engine.metrics.foundation.
+    out: dict = {}
     for q in event.qualifiers or []:
         key = type(q).__name__.replace("Qualifier", "")
         value = q.value
-        out[key] = value.name if hasattr(value, "name") else value
+        out.setdefault(key, []).append(value.name if hasattr(value, "name") else value)
+    # Statistics (xG and the xA override below) are single-valued per
+    # event and used arithmetically downstream — kept as scalars.
     for stat in getattr(event, "statistics", None) or []:
         out[stat.name] = stat.value
     # xA: not a kloppy-native field. StatsBomb links a shot-assist pass to
@@ -241,11 +253,13 @@ def ingest_competition(
 ) -> None:
     match_ids = download_competition(competition_id, season_id, data_dir)
 
+    competition_row = _competition_row(data_dir, competition_id, season_id)
     con.execute(
         "INSERT OR IGNORE INTO competition VALUES (?, ?, ?, ?, ?, ?)",
-        _competition_row(data_dir, competition_id, season_id),
+        competition_row,
     )
     competition_row_id = f"{competition_id}-{season_id}"
+    season_name = competition_row[5]
 
     matches = json.loads(
         (data_dir / "matches" / str(competition_id) / f"{season_id}.json").read_text()
@@ -300,6 +314,22 @@ def ingest_competition(
             "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             _event_rows(ds, mid),
         )
+
+    # Catch the tackles bug class before trusting anything downstream: a
+    # StatSpec naming a qualifier value the adapter never actually emits
+    # for this provider would otherwise sit there silently returning 0/0.0
+    # for every player, forever.
+    foundation.assert_qualifier_values_seen(con)
+
+    # Populate metric_value for the whole roster now, not lazily per report:
+    # compute_benchmark (build order step 7) reads whatever's already stored
+    # for a bucket/metric, so a report generated before this ran would only
+    # ever benchmark against whichever players happened to have a report of
+    # their own generated earlier — never the actual roster.
+    foundation_defs = {
+        stat_id: defn for stat_id, defn in load_all().items() if stat_id in FOUNDATION_STAT_IDS
+    }
+    compute_roster_metrics(con, foundation_defs, competition_row_id, season_name)
 
 
 def _main() -> None:

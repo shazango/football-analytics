@@ -11,6 +11,7 @@ import duckdb
 import pytest
 
 from engine.ingest.statsbomb import _insert_persons, ingest_competition
+from engine.metrics.foundation import qualifier_contains
 from engine.model.schema import ensure_schema
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "statsbomb" / "data"
@@ -85,7 +86,7 @@ def test_shots_carry_freeze_frames(con):
 def test_shot_assist_passes_carry_xa(con):
     rows = con.execute(
         "select qualifiers from event where fixture_id = ? and type = 'PASS' "
-        "and json_extract_string(qualifiers, '$.Pass') = 'SHOT_ASSIST'",
+        f"and ({qualifier_contains('Pass', 'SHOT_ASSIST', column='qualifiers')})",
         [MATCH_ID],
     ).fetchall()
     assert len(rows) == 22  # hand-checked against the fixture (see step 6)

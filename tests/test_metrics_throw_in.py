@@ -42,7 +42,7 @@ def con():
     con.execute("insert into appearance values (11, 100, 1, 90, 0, 90)")
     con.execute("insert into appearance values (11, 200, 2, 90, 0, 90)")
 
-    throw_qualifiers = {"SetPiece": "THROW_IN"}
+    throw_qualifiers = {"SetPiece": ["THROW_IN"]}
 
     # Throw 1: fast, pressed, retained (chain runs long enough).
     _insert(con, 9, 2, "BALL_OUT", 0, 99)
@@ -68,14 +68,14 @@ def con():
     _insert(con, 40, 1, "PASS", 48000, 130, loc=(80, 50), end=(85, 50),
             qualifiers=throw_qualifiers, outcome="COMPLETE", actor=100)
     _insert(con, 41, 1, "DUEL", 49000, 130, outcome="WON",
-            qualifiers={"Duel": "AERIAL"})
+            qualifiers={"Duel": ["AERIAL"]})
 
     # Throw 5: not fast, aerial duel lost (opponent wins it).
     _insert(con, 49, 2, "BALL_OUT", 60000, 139)
     _insert(con, 50, 1, "PASS", 70000, 140, loc=(50, 50), end=(52, 50),
             qualifiers=throw_qualifiers, outcome="COMPLETE", actor=100)
     _insert(con, 51, 2, "DUEL", 71000, 140, outcome="WON",
-            qualifiers={"Duel": "AERIAL"})
+            qualifiers={"Duel": ["AERIAL"]})
 
     # Throw 6: "clever" via the throw itself bypassing an opponent (at x=60,
     # in front before the throw at x=50, behind it after at x=70).

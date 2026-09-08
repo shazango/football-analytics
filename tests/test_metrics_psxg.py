@@ -67,7 +67,7 @@ def _row(location_x=20.0, location_y=50.0, end_y=50.0, end_z=20.0, outcome="SAVE
         freeze_frame.append(
             {"x": keeper_x, "y": keeper_y, "teammate": False, "actor": False, "keeper": True}
         )
-    qualifiers = {"BodyPart": body_part}
+    qualifiers = {"BodyPart": [body_part]}
     return (
         1, 0, 2, None, location_x, location_y, 90.0, end_y, end_z, outcome,
         json.dumps(qualifiers), json.dumps(freeze_frame),
@@ -191,9 +191,9 @@ def defensive_con(con):
         dict(seq=12, location_y=90.0, xg=0.6, under_pressure=False),  # wide, unpressured
     ]
     for s in shots:
-        qualifiers = {"BodyPart": "RIGHT_FOOT", "xG": s["xg"]}
+        qualifiers = {"BodyPart": ["RIGHT_FOOT"], "xG": s["xg"]}
         if s["under_pressure"]:
-            qualifiers["UnderPressure"] = True
+            qualifiers["UnderPressure"] = [True]
         freeze_frame = [{"x": 99, "y": 50, "teammate": False, "actor": False, "keeper": True}]
         con.execute(
             "insert into event values (?, ?, ?, ?, 'SHOT', NULL, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, ?)",

@@ -76,7 +76,7 @@ def con():
     for minute in (22, 24, 26, 28):
         _insert(con, seq, 2, "PASS", minute, outcome="COMPLETE"); seq += 1
     _insert(con, seq, 1, "INTERCEPTION", 23); seq += 1
-    _insert(con, seq, 1, "DUEL", 27, outcome="WON", qualifiers={"Duel": "TACKLE"}); seq += 1
+    _insert(con, seq, 1, "DUEL", 27, outcome="WON", qualifiers={"Duel": ["GROUND"]}); seq += 1
 
     return con
 

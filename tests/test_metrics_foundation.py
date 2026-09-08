@@ -165,17 +165,19 @@ def filter_con(con):
         dict(type_="PASS", outcome="COMPLETE", loc=(83, 50), end=(86, 60)),
         # shot-assist pass: key pass + xA, deliberately not progressive
         dict(type_="PASS", outcome="COMPLETE", loc=(50, 50), end=(55, 50),
-             qualifiers=dict(Pass="SHOT_ASSIST", xA=0.25)),
+             qualifiers=dict(Pass=["SHOT_ASSIST"], xA=0.25)),
         # progressive carry
         dict(type_="CARRY", loc=(10, 50), end=(90, 50)),
         # not progressive carry
         dict(type_="CARRY", loc=(10, 50), end=(20, 50)),
-        # duels
-        dict(type_="DUEL", outcome="WON", qualifiers=dict(Duel="GROUND")),
-        dict(type_="DUEL", outcome="WON", qualifiers=dict(Duel="TACKLE")),
-        dict(type_="DUEL", outcome="LOST", qualifiers=dict(Duel="TACKLE")),
-        dict(type_="DUEL", outcome="WON", qualifiers=dict(Duel="AERIAL")),
-        dict(type_="DUEL", outcome="LOST", qualifiers=dict(Duel="AERIAL")),
+        # duels: a real tackle attempt is Duel=[GROUND] alone (kloppy never
+        # emits TACKLE/SLIDING_TACKLE for StatsBomb); a 50/50 loose-ball
+        # contest is Duel=[LOOSE_BALL, GROUND] and must NOT count as a tackle
+        dict(type_="DUEL", outcome="WON", qualifiers=dict(Duel=["LOOSE_BALL", "GROUND"])),
+        dict(type_="DUEL", outcome="WON", qualifiers=dict(Duel=["GROUND"])),
+        dict(type_="DUEL", outcome="LOST", qualifiers=dict(Duel=["GROUND"])),
+        dict(type_="DUEL", outcome="WON", qualifiers=dict(Duel=["LOOSE_BALL", "AERIAL"])),
+        dict(type_="DUEL", outcome="LOST", qualifiers=dict(Duel=["LOOSE_BALL", "AERIAL"])),
         dict(type_="INTERCEPTION"),
         dict(type_="RECOVERY"),
     ]

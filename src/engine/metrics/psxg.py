@@ -104,7 +104,7 @@ def _extract_features(row: tuple) -> dict | None:
         return None
 
     qualifiers = json.loads(qualifiers_json) or {}
-    body_part = qualifiers.get("BodyPart")
+    body_part = (qualifiers.get("BodyPart") or [None])[0]
     return {
         "distance_to_goal": math.hypot(GOAL_X - x, GOAL_CENTER_Y - y),
         "angle_to_goal": _angle_to_goal(x, y),

@@ -15,6 +15,7 @@ import json
 import math
 
 from engine.metrics import registry
+from engine.metrics.foundation import qualifier_contains
 from engine.metrics.line_break import _bypassed_value_and_count
 from engine.metrics.runtime import MetricResult
 
@@ -85,7 +86,7 @@ def _derive_throw(con, row: tuple) -> dict:
 
     aerials = con.execute(
         "select team_id, outcome from event where fixture_id = ? and possession_id = ? "
-        "and type = 'DUEL' and json_extract_string(qualifiers, '$.Duel') = 'AERIAL'",
+        f"and type = 'DUEL' and ({qualifier_contains('Duel', 'AERIAL', column='qualifiers')})",
         [fixture_id, possession_id],
     ).fetchall()
     has_aerial = len(aerials) > 0
@@ -114,7 +115,7 @@ def _throws_taken(con, person_id: int, competition_id: str) -> list[dict]:
         "t.end_x, t.end_y, t.possession_id, t.timestamp_ms "
         "from event t join fixture f on f.id = t.fixture_id "
         "where t.actor_person_id = ? and f.competition_id = ? and t.type = 'PASS' "
-        "and json_extract_string(t.qualifiers, '$.SetPiece') = 'THROW_IN'",
+        f"and ({qualifier_contains('SetPiece', 'THROW_IN', column='t.qualifiers')})",
         [person_id, competition_id],
     ).fetchall()
     return [_derive_throw(con, r) for r in rows]
@@ -135,7 +136,8 @@ def _opposing_throws(con, person_id: int, competition_id: str) -> list[dict]:
             con.execute(
                 "select fixture_id, sequence, team_id, location_x, location_y, end_x, end_y, "
                 "possession_id, timestamp_ms from event where fixture_id = ? and type = 'PASS' "
-                "and json_extract_string(qualifiers, '$.SetPiece') = 'THROW_IN' and team_id != ?",
+                f"and ({qualifier_contains('SetPiece', 'THROW_IN', column='qualifiers')}) "
+                "and team_id != ?",
                 [fixture_id, own_team_id],
             ).fetchall()
         )

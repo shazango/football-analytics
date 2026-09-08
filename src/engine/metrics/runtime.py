@@ -25,6 +25,12 @@ class MetricResult:
     sample_size: int
     ci_low: float | None = None
     ci_high: float | None = None
+    # Set by compute_and_store just before the metric_value row is written
+    # (an implementation never sets these itself) — carried on the result
+    # so callers can render the same provenance metric_value actually
+    # stored, instead of it being stranded in the database.
+    computed_at: datetime | None = None
+    input_hash: str | None = None
 
 
 def compute_input_hash(definition: MetricDefinition, **params) -> str:
@@ -82,6 +88,7 @@ def compute_and_store(
         game_state_bucket=game_state_bucket,
         **params,
     )
+    computed_at = datetime.now(timezone.utc)
 
     con.execute(
         "INSERT INTO metric_value VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -98,8 +105,10 @@ def compute_and_store(
             result.sample_size,
             result.ci_low,
             result.ci_high,
-            datetime.now(timezone.utc),
+            computed_at,
             input_hash,
         ],
     )
+    result.computed_at = computed_at
+    result.input_hash = input_hash
     return result

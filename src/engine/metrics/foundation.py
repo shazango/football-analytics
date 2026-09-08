@@ -33,6 +33,7 @@ proxy, not an independent league-wide rating (see docs/metrics/
 opposition_strength_caveat.md).
 """
 
+import re
 from collections import defaultdict
 from dataclasses import dataclass
 
@@ -53,6 +54,18 @@ class StatSpec:
     value_expr: str = "1"  # SQL expression summed per matching row; "1" = count
 
 
+def qualifier_contains(key: str, value: str, column: str = "e.qualifiers") -> str:
+    """SQL fragment: does this event's `qualifiers[key]` list contain
+    `value`? Qualifier values are stored as JSON arrays per key, not
+    scalars — kloppy can legitimately attach more than one value of the
+    same qualifier type to a single event (a StatsBomb 50/50 event's Duel
+    qualifier is both LOOSE_BALL and GROUND, same shape a tackle's GROUND
+    alone would take if collapsed to a scalar last-value-wins) — see
+    `_serialize_qualifiers` in engine.ingest.statsbomb.
+    """
+    return f"list_contains(cast(json_extract({column}, '$.{key}') as varchar[]), '{value}')"
+
+
 STAT_SPECS: dict[str, StatSpec] = {
     # Own goals carry an actor_person_id (the scorer) but aren't a shot the
     # player took — excluded so an unlucky deflection doesn't inflate a
@@ -68,21 +81,27 @@ STAT_SPECS: dict[str, StatSpec] = {
         value_expr="try_cast(json_extract(e.qualifiers, '$.xA') as double)",
     ),
     "key_passes": StatSpec(
-        "e.type = 'PASS' and json_extract_string(e.qualifiers, '$.Pass') = 'SHOT_ASSIST'"
+        f"e.type = 'PASS' and ({qualifier_contains('Pass', 'SHOT_ASSIST')})"
     ),
     "progressive_passes": StatSpec(
         f"e.type = 'PASS' and e.outcome = 'COMPLETE' and ({_PROGRESSIVE_SQL})"
     ),
     "progressive_carries": StatSpec(f"e.type = 'CARRY' and ({_PROGRESSIVE_SQL})"),
     "duels_won": StatSpec("e.type = 'DUEL' and e.outcome = 'WON'"),
+    # kloppy's StatsBomb adapter never emits DuelType.TACKLE/SLIDING_TACKLE
+    # (those enum members exist but nothing produces them for this
+    # provider) — a raw "Tackle" duel is represented as Duel=[GROUND]
+    # instead. GROUND alone isn't unique to tackles though: a 50/50 loose-
+    # ball contest is Duel=[LOOSE_BALL, GROUND]. Excluding LOOSE_BALL is
+    # what separates the two. See docs/metrics/tackles.md.
     "tackles": StatSpec(
-        "e.type = 'DUEL' and json_extract_string(e.qualifiers, '$.Duel') "
-        "in ('TACKLE', 'SLIDING_TACKLE')"
+        f"e.type = 'DUEL' and ({qualifier_contains('Duel', 'GROUND')}) "
+        f"and not ({qualifier_contains('Duel', 'LOOSE_BALL')})"
     ),
     "interceptions": StatSpec("e.type = 'INTERCEPTION'"),
     "recoveries": StatSpec("e.type = 'RECOVERY'"),
     "aerials": StatSpec(
-        "e.type = 'DUEL' and json_extract_string(e.qualifiers, '$.Duel') = 'AERIAL' "
+        f"e.type = 'DUEL' and ({qualifier_contains('Duel', 'AERIAL')}) "
         "and e.outcome = 'WON'"
     ),
 }
@@ -92,6 +111,38 @@ THIRDS = {
     "middle": (100 / 3, 200 / 3),
     "attacking": (200 / 3, 100.0),
 }
+
+# Parses (qualifier_key, value) pairs directly out of a StatSpec's own
+# event_where text — specifically the pattern qualifier_contains() emits —
+# rather than tracking them in separate declared metadata that could drift
+# from what a StatSpec actually checks.
+_QUALIFIER_REF_RE = re.compile(
+    r"list_contains\(cast\(json_extract\([\w.]+, '\$\.(\w+)'\) as varchar\[\]\), '([^']+)'\)"
+)
+
+
+def assert_qualifier_values_seen(con, stat_specs: dict[str, StatSpec] = STAT_SPECS) -> None:
+    """Ingest-time guard against the tackles bug class: a StatSpec naming a
+    qualifier value the ingest adapter never actually produces for this
+    provider, so its event_where can never match anything — forever,
+    silently, rendering as a confident 0/0.0 rather than a suppressed
+    "insufficient sample". Run once per ingest, after events are loaded;
+    fails loudly instead of shipping a metric that's always empty.
+    """
+    for stat_id, spec in stat_specs.items():
+        for key, value in set(re.findall(_QUALIFIER_REF_RE, spec.event_where)):
+            seen = con.execute(
+                f"select count(*) from event where "
+                f"({qualifier_contains(key, value, column='qualifiers')})"
+            ).fetchone()[0]
+            if seen == 0:
+                raise ValueError(
+                    f"metric '{stat_id}': qualifiers.{key} never contains "
+                    f"'{value}' anywhere in the ingested data, so this "
+                    f"StatSpec's event_where can never match anything. "
+                    "Check whether the ingest adapter actually emits this "
+                    "value for this provider before trusting the metric."
+                )
 
 ADJUSTMENT_MODES = ("raw", "per_90", "possession", "opposition_strength")
 

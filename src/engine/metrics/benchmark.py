@@ -20,7 +20,19 @@ into the conventional four: GK / DF / MF / FW.
 import json
 from datetime import datetime, timezone
 
+from engine.metrics import foundation
 from engine.metrics.runtime import compute_and_store
+
+# The metric ids reports benchmark players against (report.py's
+# foundation_metrics section). Shared here — rather than duplicated in
+# report.py and wherever roster-wide precomputation is triggered — since
+# it's this module's own "every foundation metric" from the docstring
+# above.
+FOUNDATION_STAT_IDS = (
+    list(foundation.STAT_SPECS)
+    + [f"pass_completion_{third}_third" for third in foundation.THIRDS]
+    + ["line_break_value"]
+)
 
 POSITION_BUCKETS: dict[str, str] = {
     "Goalkeeper": "GK",

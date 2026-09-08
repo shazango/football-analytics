@@ -25,19 +25,13 @@ from engine.metrics import (  # noqa: F401 (registers implementations)
     supply,
     throw_in,
 )
-from engine.metrics.benchmark import compute_benchmark, percentile_rank, position_bucket
+from engine.metrics.benchmark import FOUNDATION_STAT_IDS, compute_benchmark, percentile_rank, position_bucket
 from engine.metrics.definitions import load_all
 from engine.metrics.runtime import compute_and_store
 
 ATTRIBUTION = (
     "Data: StatsBomb Open Data "
     "(https://github.com/statsbomb/open-data), used under their Open Data User Agreement."
-)
-
-FOUNDATION_STAT_IDS = (
-    list(foundation.STAT_SPECS)
-    + [f"pass_completion_{third}_third" for third in foundation.THIRDS]
-    + ["line_break_value"]
 )
 
 GK_PANEL_STAT_IDS = [
@@ -71,6 +65,8 @@ def _metric_entry(con, defn, person_id, competition_id, season, adjustment=None)
         "confidence": defn.confidence,
         "methodology": defn.methodology,
         "definition_version": defn.version,
+        "computed_at": result.computed_at,
+        "input_hash": result.input_hash,
     }
 
 
@@ -149,6 +145,8 @@ def build_report(con, person_id: int, competition_id: str, season: str) -> dict:
                 "sample_size": result.sample_size,
                 "min_sample": defn.min_sample,
                 "suppressed": result.sample_size < defn.min_sample,
+                "computed_at": result.computed_at,
+                "input_hash": result.input_hash,
             })
 
     return {

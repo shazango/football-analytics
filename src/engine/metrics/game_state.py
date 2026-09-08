@@ -265,8 +265,9 @@ def _pressing_intensity_impl(con, definition, person_id, competition_id, season,
                 "sum(case when e.team_id != ? and e.type = 'PASS' and e.outcome = 'COMPLETE' "
                 "         then 1 else 0 end), "
                 "sum(case when e.team_id = ? and (e.type = 'INTERCEPTION' or "
-                "         (e.type = 'DUEL' and json_extract_string(e.qualifiers, '$.Duel') "
-                "          in ('TACKLE', 'SLIDING_TACKLE'))) then 1 else 0 end) "
+                f"         (e.type = 'DUEL' and ({foundation.qualifier_contains('Duel', 'GROUND', column='e.qualifiers')}) "
+                f"          and not ({foundation.qualifier_contains('Duel', 'LOOSE_BALL', column='e.qualifiers')}))) "
+                "then 1 else 0 end) "
                 "from event e where e.fixture_id = ? and e.timestamp_ms between ? and ?",
                 [team_id, team_id, fid, overlap_start, overlap_end],
             ).fetchone()
