@@ -88,6 +88,19 @@ def _person_rows(lineup_json: list[dict]) -> list[tuple]:
     return rows
 
 
+def _insert_persons(con, rows: list[tuple]) -> None:
+    # A player's lineup entry has an empty `positions` list in any match
+    # they didn't feature in (unused sub); INSERT OR IGNORE would let
+    # whichever match got processed first — even a position-less one —
+    # permanently blank out real position data from a later match. Upsert
+    # so a later match can fill it in.
+    con.executemany(
+        "INSERT INTO person VALUES (?, ?, ?, ?, ?) ON CONFLICT (id) DO UPDATE "
+        "SET primary_position = COALESCE(person.primary_position, excluded.primary_position)",
+        rows,
+    )
+
+
 def _serialize_qualifiers(event, shot_xg_by_id: dict[str, float] | None = None) -> dict | None:
     out = {}
     for q in event.qualifiers or []:
@@ -276,10 +289,7 @@ def ingest_competition(
         lineup_json = json.loads(lineup_path.read_text())
         total_minutes = ds.metadata.periods[-1].end_timestamp.total_seconds() / 60
 
-        con.executemany(
-            "INSERT OR IGNORE INTO person VALUES (?, ?, ?, ?, ?)",
-            _person_rows(lineup_json),
-        )
+        _insert_persons(con, _person_rows(lineup_json))
         con.executemany(
             "INSERT OR IGNORE INTO appearance VALUES (?, ?, ?, ?, ?, ?)",
             _appearance_rows(lineup_json, mid, total_minutes),

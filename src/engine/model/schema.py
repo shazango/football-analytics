@@ -119,12 +119,32 @@ CREATE TABLE IF NOT EXISTS metric_value (
     season VARCHAR NOT NULL,
     definition_id VARCHAR NOT NULL,
     definition_version INTEGER NOT NULL,
+    -- Not in the brief's literal §5 schema, added in step 6: adjustment is a
+    -- *runtime-switchable* choice (raw/per_90/possession/opposition_strength),
+    -- so a value on its own doesn't say which one produced it. NULL for
+    -- ratio metrics (e.g. pass_completion_*_third), which have none.
+    adjustment VARCHAR,
     value DOUBLE,
     sample_size INTEGER NOT NULL,
     ci_low DOUBLE,
     ci_high DOUBLE,
     computed_at TIMESTAMP NOT NULL,
     input_hash VARCHAR NOT NULL
+);
+
+-- Distributions of a foundation metric across all qualifying players in one
+-- competition/season/position-bucket (build order step 7). Append-only, like
+-- metric_value: `computed_at` breaks ties for "the current benchmark".
+CREATE TABLE IF NOT EXISTS benchmark_distribution (
+    competition_id VARCHAR NOT NULL REFERENCES competition(id),
+    season VARCHAR NOT NULL,
+    position_bucket VARCHAR NOT NULL,
+    definition_id VARCHAR NOT NULL,
+    definition_version INTEGER NOT NULL,
+    adjustment VARCHAR,
+    n INTEGER NOT NULL,
+    sample_values JSON NOT NULL,
+    computed_at TIMESTAMP NOT NULL
 );
 """
 

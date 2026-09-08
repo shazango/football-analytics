@@ -10,7 +10,7 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from engine.ingest.statsbomb import ingest_competition
+from engine.ingest.statsbomb import _insert_persons, ingest_competition
 from engine.model.schema import ensure_schema
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "statsbomb" / "data"
@@ -158,3 +158,19 @@ def test_ingest_is_idempotent(con):
     ingest_competition(con, competition_id=9, season_id=281, data_dir=FIXTURE_DIR)
     after = con.execute("select count(*) from event").fetchone()[0]
     assert before == after
+
+
+def test_later_match_fills_in_missing_position():
+    # Regression: a player who's an unused sub in one match has an empty
+    # `positions` list there, giving primary_position=None for that match's
+    # row. INSERT OR IGNORE would let that first-seen None win forever even
+    # if a later match shows their real position — 5 Leverkusen regulars
+    # with 1000+ minutes ended up position-less this way (see step 7).
+    con = duckdb.connect(":memory:")
+    ensure_schema(con)
+    _insert_persons(con, [(999, "Unused Sub Then Starter", None, None, None)])
+    _insert_persons(con, [(999, "Unused Sub Then Starter", None, None, "Center Back")])
+    position = con.execute(
+        "select primary_position from person where id = 999"
+    ).fetchone()[0]
+    assert position == "Center Back"

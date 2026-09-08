@@ -44,6 +44,7 @@ def compute_and_store(
     competition_id: str,
     season: str,
     fixture_id: int | None = None,
+    adjustment: str | None = None,
     **params,
 ) -> MetricResult:
     impl = get_implementation(definition.id)
@@ -54,6 +55,7 @@ def compute_and_store(
         competition_id=competition_id,
         season=season,
         fixture_id=fixture_id,
+        adjustment=adjustment,
         **params,
     )
 
@@ -74,11 +76,12 @@ def compute_and_store(
         competition_id=competition_id,
         season=season,
         fixture_id=fixture_id,
+        adjustment=adjustment,
         **params,
     )
 
     con.execute(
-        "INSERT INTO metric_value VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO metric_value VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             person_id,
             fixture_id,
@@ -86,6 +89,7 @@ def compute_and_store(
             season,
             definition.id,
             definition.version,
+            adjustment,
             result.value,
             result.sample_size,
             result.ci_low,
