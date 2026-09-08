@@ -57,7 +57,7 @@ Following the brief's build order (§11). Current progress:
 - [x] 5. Metric definition loader and runtime, with versioning and input hashing
 - [x] 6. Foundation layer plus the three adjustments
 - [x] 7. Benchmark sets
-- [ ] 8. `psxg_ga` with confidence bands and defensive context
+- [x] 8. `psxg_ga` with confidence bands and defensive context
 - [ ] 9. `throw_in_profile`
 - [ ] 10. `supply_attribution`
 - [ ] 11. `line_break_value`, validated against Impect open data
