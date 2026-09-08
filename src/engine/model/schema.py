@@ -1,0 +1,131 @@
+"""Canonical DuckDB schema (PHASE-0-BRIEF.md §5).
+
+Built on kloppy's event model rather than a parallel one: kloppy parses and
+normalises provider data in memory, this schema is just where the parsed
+result is persisted. Coordinates are 0-100 (kloppy's "opta" coordinate
+system). Orientation is ACTION_EXECUTING_TEAM: for every event, x increases
+toward the goal the acting team is attacking, regardless of home/away — so
+"progressive" and "line-breaking" metrics don't need to flip based on which
+team or which half.
+
+`game_state` and `possession_id` columns exist here but are populated by
+ingest step 3, not step 2 — left NULL until then.
+"""
+
+DDL = """
+CREATE TABLE IF NOT EXISTS competition (
+    id VARCHAR PRIMARY KEY,
+    name VARCHAR NOT NULL,
+    country VARCHAR,
+    tier VARCHAR,
+    gender VARCHAR,
+    season VARCHAR NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS team (
+    id BIGINT PRIMARY KEY,
+    name VARCHAR NOT NULL,
+    competition_id VARCHAR NOT NULL REFERENCES competition(id)
+);
+
+CREATE TABLE IF NOT EXISTS person (
+    id BIGINT PRIMARY KEY,
+    canonical_name VARCHAR NOT NULL,
+    dob DATE,
+    foot VARCHAR,
+    primary_position VARCHAR
+);
+
+CREATE TABLE IF NOT EXISTS fixture (
+    id BIGINT PRIMARY KEY,
+    competition_id VARCHAR NOT NULL REFERENCES competition(id),
+    home_team_id BIGINT NOT NULL REFERENCES team(id),
+    away_team_id BIGINT NOT NULL REFERENCES team(id),
+    kickoff_utc TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS appearance (
+    fixture_id BIGINT NOT NULL REFERENCES fixture(id),
+    person_id BIGINT NOT NULL REFERENCES person(id),
+    team_id BIGINT NOT NULL REFERENCES team(id),
+    minutes DOUBLE NOT NULL,
+    start_min DOUBLE NOT NULL,
+    end_min DOUBLE NOT NULL,
+    PRIMARY KEY (fixture_id, person_id)
+);
+
+CREATE TABLE IF NOT EXISTS event (
+    fixture_id BIGINT NOT NULL REFERENCES fixture(id),
+    sequence BIGINT NOT NULL,
+    timestamp_ms BIGINT NOT NULL,
+    period INTEGER NOT NULL,
+    type VARCHAR NOT NULL,
+    actor_person_id BIGINT REFERENCES person(id),
+    team_id BIGINT REFERENCES team(id),
+    location_x DOUBLE,
+    location_y DOUBLE,
+    end_x DOUBLE,
+    end_y DOUBLE,
+    outcome VARCHAR,
+    possession_id BIGINT,
+    qualifiers JSON,
+    game_state VARCHAR,
+    freeze_frame JSON,
+    PRIMARY KEY (fixture_id, sequence)
+);
+
+CREATE TABLE IF NOT EXISTS physical_sample (
+    fixture_id BIGINT NOT NULL REFERENCES fixture(id),
+    person_id BIGINT NOT NULL REFERENCES person(id),
+    bucket_start_min DOUBLE NOT NULL,
+    bucket_end_min DOUBLE NOT NULL,
+    distance_m DOUBLE,
+    hi_distance_m DOUBLE,
+    sprint_count INTEGER,
+    accel_count INTEGER,
+    decel_count INTEGER,
+    max_speed_ms DOUBLE,
+    source VARCHAR NOT NULL,
+    PRIMARY KEY (fixture_id, person_id, bucket_start_min, source)
+);
+
+CREATE TABLE IF NOT EXISTS person_alias (
+    person_id BIGINT NOT NULL REFERENCES person(id),
+    source VARCHAR NOT NULL,
+    source_ref VARCHAR NOT NULL,
+    display_name VARCHAR NOT NULL,
+    confidence DOUBLE NOT NULL,
+    confirmed_by VARCHAR,
+    PRIMARY KEY (source, source_ref)
+);
+
+-- Deterministic identity resolution (§5) parks anything ambiguous here
+-- instead of guessing. Populated starting build order step 4.
+CREATE TABLE IF NOT EXISTS unresolved_alias (
+    source VARCHAR NOT NULL,
+    source_ref VARCHAR NOT NULL,
+    display_name VARCHAR NOT NULL,
+    reason VARCHAR NOT NULL,
+    detected_at TIMESTAMP NOT NULL,
+    PRIMARY KEY (source, source_ref)
+);
+
+CREATE TABLE IF NOT EXISTS metric_value (
+    person_id BIGINT NOT NULL REFERENCES person(id),
+    fixture_id BIGINT REFERENCES fixture(id),
+    competition_id VARCHAR NOT NULL REFERENCES competition(id),
+    season VARCHAR NOT NULL,
+    definition_id VARCHAR NOT NULL,
+    definition_version INTEGER NOT NULL,
+    value DOUBLE,
+    sample_size INTEGER NOT NULL,
+    ci_low DOUBLE,
+    ci_high DOUBLE,
+    computed_at TIMESTAMP NOT NULL,
+    input_hash VARCHAR NOT NULL
+);
+"""
+
+
+def ensure_schema(con) -> None:
+    con.execute(DDL)
