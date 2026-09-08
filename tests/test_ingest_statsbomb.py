@@ -102,6 +102,30 @@ def test_coordinates_normalised_0_100(con):
     assert 0 <= lo_y and hi_y <= 100
 
 
+def test_possession_and_game_state(con):
+    # The fixture's only goal: Bayer Leverkusen scores at ~52:15. State must
+    # read "0" for both sides beforehand and flip to "1"/"-1" right after.
+    rows = con.execute(
+        "select sequence, team_id, possession_id, game_state, type, outcome "
+        "from event where fixture_id = ? order by sequence",
+        [MATCH_ID],
+    ).fetchall()
+    assert all(r[2] is not None for r in rows), "every event gets a possession_id"
+
+    goal_idx = next(i for i, r in enumerate(rows) if r[4] == "SHOT" and r[5] == "GOAL")
+    scoring_team = rows[goal_idx][1]
+    assert rows[goal_idx][3] == "0"  # state just before the goal is level
+
+    post_scoring = next(
+        r for r in rows[goal_idx + 1 :] if r[1] == scoring_team
+    )
+    assert post_scoring[3] == "1"
+    post_conceding = next(
+        r for r in rows[goal_idx + 1 :] if r[1] is not None and r[1] != scoring_team
+    )
+    assert post_conceding[3] == "-1"
+
+
 def test_ingest_is_idempotent(con):
     before = con.execute("select count(*) from event").fetchone()[0]
     ingest_competition(con, competition_id=9, season_id=281, data_dir=FIXTURE_DIR)

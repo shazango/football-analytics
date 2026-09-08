@@ -8,8 +8,10 @@ toward the goal the acting team is attacking, regardless of home/away — so
 "progressive" and "line-breaking" metrics don't need to flip based on which
 team or which half.
 
-`game_state` and `possession_id` columns exist here but are populated by
-ingest step 3, not step 2 — left NULL until then.
+`possession_id` is StatsBomb's own chain number namespaced by fixture_id
+(fixture_id * 10_000 + raw possession number); `game_state` is the score
+margin for the event's own team as of just before the event, e.g. "1",
+"0", "-2". Both derived during ingest — see engine.ingest.statsbomb.
 """
 
 DDL = """

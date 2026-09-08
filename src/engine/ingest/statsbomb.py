@@ -1,16 +1,16 @@
 """Ingest a StatsBomb open-data competition/season into the canonical schema.
 
-Build order step 2 (PHASE-0-BRIEF.md §11): download raw files, parse with
+Build order steps 2-3 (PHASE-0-BRIEF.md §11): download raw files, parse with
 kloppy (do not hand-roll a StatsBomb parser — kloppy already normalises
 provider schemas and pitch coordinates), and persist only parsed/derived
-rows to DuckDB, never the raw provider payload (§12).
+rows to DuckDB, never the raw provider payload (§12). `possession_id` and
+`game_state` (score margin as of just before the event) are derived from
+kloppy's parsed events during the same ingest pass — see
+`_possession_and_state`.
 
 `qualifiers` and `freeze_frame` are built from kloppy's own normalised
 Qualifier/Frame objects, not from StatsBomb's raw JSON sub-objects — that
 keeps the "derived values only" rule even for semi-structured event detail.
-
-`game_state` and `possession_id` are left NULL here; build order step 3
-derives them.
 """
 
 import json
@@ -18,6 +18,7 @@ from pathlib import Path
 
 import duckdb
 import kloppy.statsbomb as sb
+from kloppy.domain import Ground, ShotResult
 
 from engine.ingest import _kloppy_patches  # noqa: F401 (applies patch on import)
 from engine.ingest.download import DEFAULT_DATA_DIR, download_competition
@@ -126,12 +127,52 @@ def _end_point(event):
     return None
 
 
+def _possession_and_state(ds, fixture_id: int) -> list[tuple[int | None, str | None]]:
+    """Possession id (unique per match) and game_state (score margin for the
+    event's own team, as of just before the event) for every event in order.
+
+    `possession` is StatsBomb's own chain number (per raw_event, not a
+    persisted payload — read directly off kloppy's already-parsed event);
+    combined with fixture_id it's unique across the warehouse. Own goals
+    credit the *opposing* team's tally, per StatsBomb's own convention of
+    attributing the OWN_GOAL_AGAINST event to the conceding side.
+    """
+    scores = {Ground.HOME: 0, Ground.AWAY: 0}
+    out = []
+    for event in ds.events:
+        raw_possession = event.raw_event.get("possession")
+        possession_id = (
+            fixture_id * 10_000 + raw_possession if raw_possession is not None else None
+        )
+
+        if event.team is None:
+            game_state = None
+        else:
+            own_ground = event.team.ground
+            opp_ground = Ground.AWAY if own_ground == Ground.HOME else Ground.HOME
+            game_state = str(scores[own_ground] - scores[opp_ground])
+
+        out.append((possession_id, game_state))
+
+        if event.event_type.name == "SHOT" and event.result is not None:
+            if event.result == ShotResult.GOAL:
+                scores[event.team.ground] += 1
+            elif event.result == ShotResult.OWN_GOAL:
+                conceding = event.team.ground
+                scoring = Ground.AWAY if conceding == Ground.HOME else Ground.HOME
+                scores[scoring] += 1
+    return out
+
+
 def _event_rows(ds, fixture_id: int) -> list[tuple]:
     period_offset_ms = {
         p.id: p.start_timestamp.total_seconds() * 1000 for p in ds.metadata.periods
     }
+    possession_and_state = _possession_and_state(ds, fixture_id)
     rows = []
-    for sequence, event in enumerate(ds.events):
+    for sequence, (event, (possession_id, game_state)) in enumerate(
+        zip(ds.events, possession_and_state)
+    ):
         end_point = _end_point(event)
         rows.append(
             (
@@ -147,9 +188,9 @@ def _event_rows(ds, fixture_id: int) -> list[tuple]:
                 end_point.x if end_point else None,
                 end_point.y if end_point else None,
                 event.result.name if event.result else None,
-                None,  # possession_id: build order step 3
+                possession_id,
                 json.dumps(_serialize_qualifiers(event)),
-                None,  # game_state: build order step 3
+                game_state,
                 json.dumps(_serialize_freeze_frame(event)),
             )
         )
