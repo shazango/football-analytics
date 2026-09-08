@@ -45,6 +45,7 @@ def compute_and_store(
     season: str,
     fixture_id: int | None = None,
     adjustment: str | None = None,
+    game_state_bucket: str | None = None,
     **params,
 ) -> MetricResult:
     impl = get_implementation(definition.id)
@@ -56,6 +57,7 @@ def compute_and_store(
         season=season,
         fixture_id=fixture_id,
         adjustment=adjustment,
+        game_state_bucket=game_state_bucket,
         **params,
     )
 
@@ -77,11 +79,12 @@ def compute_and_store(
         season=season,
         fixture_id=fixture_id,
         adjustment=adjustment,
+        game_state_bucket=game_state_bucket,
         **params,
     )
 
     con.execute(
-        "INSERT INTO metric_value VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO metric_value VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             person_id,
             fixture_id,
@@ -90,6 +93,7 @@ def compute_and_store(
             definition.id,
             definition.version,
             adjustment,
+            game_state_bucket,
             result.value,
             result.sample_size,
             result.ci_low,

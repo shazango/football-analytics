@@ -1,0 +1,10 @@
+id: game_state_pressing_intensity_trailing_2plus
+version: 1
+title: Pressing intensity when trailing by 2+ (headline)
+applies_to: all
+requires:
+  - event.type
+  - event.outcome
+  - possession_id
+min_sample: 5
+methodology: docs/metrics/game_state_response.md

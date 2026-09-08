@@ -67,7 +67,7 @@ def con():
 def _insert_metric_value(con, person_id, value, sample_size, adjustment="per_90",
                           definition_id="shots", version=1, computed_at=None):
     con.execute(
-        "insert into metric_value values (?, NULL, 'C1', 'S1', ?, ?, ?, ?, ?, NULL, NULL, ?, 'h')",
+        "insert into metric_value values (?, NULL, 'C1', 'S1', ?, ?, ?, NULL, ?, ?, NULL, NULL, ?, 'h')",
         [
             person_id, definition_id, version, adjustment, value, sample_size,
             computed_at or datetime.now(timezone.utc),

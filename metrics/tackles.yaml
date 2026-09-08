@@ -7,4 +7,5 @@ requires:
   - duel.type
 min_sample: 450
 adjustments: [per_90, possession, opposition_strength]
+game_state_buckets: [leading, level, trailing_1, trailing_2plus, after_conceding_10min]
 methodology: docs/metrics/tackles.md

@@ -25,6 +25,10 @@ class MetricDefinition:
     requires: list[str] = field(default_factory=list)
     adjustments: list[str] = field(default_factory=list)
     confidence: str = "point"  # "point" | "bootstrap"
+    # Step 12: which game-state windows (if any) this metric can be
+    # re-scoped to — "leading" | "level" | "trailing_1" | "trailing_2plus"
+    # | "after_conceding_10min". Empty means whole-season only.
+    game_state_buckets: list[str] = field(default_factory=list)
 
 
 def load_definition(path: Path) -> MetricDefinition:
@@ -47,6 +51,7 @@ def load_definition(path: Path) -> MetricDefinition:
         requires=raw.get("requires", []),
         adjustments=raw.get("adjustments", []),
         confidence=raw.get("confidence", "point"),
+        game_state_buckets=raw.get("game_state_buckets", []),
     )
 
 

@@ -125,6 +125,11 @@ CREATE TABLE IF NOT EXISTS metric_value (
     -- so a value on its own doesn't say which one produced it. NULL for
     -- ratio metrics (e.g. pass_completion_*_third), which have none.
     adjustment VARCHAR,
+    -- Added in step 12, same reasoning as `adjustment` above: a foundation
+    -- stat can be re-scoped to a game-state window (leading/level/trailing/
+    -- trailing_2plus/after_conceding_10min); NULL means the whole-season
+    -- aggregate, as every metric before step 12 already stored.
+    game_state_bucket VARCHAR,
     value DOUBLE,
     sample_size INTEGER NOT NULL,
     ci_low DOUBLE,

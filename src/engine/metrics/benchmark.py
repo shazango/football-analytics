@@ -102,10 +102,17 @@ def compute_benchmark(
     season: str,
     bucket: str,
     adjustment: str | None = None,
+    game_state_bucket: str | None = None,
 ) -> dict:
     """Distribution of one metric's latest computed value across all
     qualifying players (sample_size >= min_sample) in one position bucket.
-    Stores a snapshot row in benchmark_distribution; returns {n, values}."""
+    Stores a snapshot row in benchmark_distribution; returns {n, values}.
+
+    `game_state_bucket` (step 12) must be filtered the same way as
+    `adjustment` — a definition_id like "shots" can have both whole-season
+    rows (game_state_bucket NULL) and state-scoped rows coexisting; without
+    this filter "latest computed_at per person" could pick either kind.
+    """
     rows = con.execute(
         """
         select value, primary_position from (
@@ -118,10 +125,12 @@ def compute_benchmark(
             where mv.competition_id = ? and mv.season = ?
               and mv.definition_id = ? and mv.definition_version = ?
               and mv.adjustment is not distinct from ?
+              and mv.game_state_bucket is not distinct from ?
         ) latest
         where rn = 1 and value is not null and sample_size >= ?
         """,
-        [competition_id, season, definition.id, definition.version, adjustment, definition.min_sample],
+        [competition_id, season, definition.id, definition.version, adjustment,
+         game_state_bucket, definition.min_sample],
     ).fetchall()
 
     values = sorted(value for value, position in rows if position_bucket(position) == bucket)
