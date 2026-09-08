@@ -1,0 +1,9 @@
+id: supply_assisted_xg_share
+version: 1
+title: Share of xG from assisted shots
+applies_to: all
+requires:
+  - shot.xg
+  - possession_id
+min_sample: 10
+methodology: docs/metrics/supply_attribution.md

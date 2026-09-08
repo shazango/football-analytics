@@ -1,0 +1,9 @@
+id: supply_top_supplier_share
+version: 1
+title: Share of assisted xG from the top supplying teammate
+applies_to: all
+requires:
+  - shot.xg
+  - possession_id
+min_sample: 10
+methodology: docs/metrics/supply_attribution.md
