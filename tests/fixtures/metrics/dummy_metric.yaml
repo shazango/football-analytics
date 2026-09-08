@@ -1,0 +1,10 @@
+id: dummy_metric
+version: 1
+title: Dummy metric for exercising the runtime
+applies_to: all
+requires:
+  - nothing
+min_sample: 10
+adjustments: []
+confidence: bootstrap
+methodology: tests/fixtures/metrics/dummy_metric.md
