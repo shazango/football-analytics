@@ -18,9 +18,11 @@ SEASON ?= 281
 ingest:
 	uv run python -m engine.ingest.statsbomb --competition-id $(COMPETITION) --season-id $(SEASON)
 
-# ponytail: wired up once the renderers (build order step 13) exist.
-# Definition of done for Phase 0: this writes out/<PLAYER>.pdf,
-# out/<PLAYER>.xlsx, out/<PLAYER>.json.
+# PLAYER is a person_id (see person.id in the warehouse). Writes
+# out/<PLAYER>.json and .xlsx always; .pdf too if WeasyPrint's system
+# libraries (Pango/cairo/gobject) are installed -- skipped with a
+# message otherwise (untestable on this dev machine, see
+# engine/render/pdf_renderer.py).
 report:
 	uv run python -m engine.render.report --player $(PLAYER)
 
