@@ -52,10 +52,8 @@ warehouse before picking them:
   same "opposing shots" pattern as psxg_ga's defensive context (step 8),
   applied to throws instead. Substitution timing ignored, same
   simplification as step 8.
-
-## Deferred: "Clever"
-
-The brief's third throw-in component — whether the throw or first
-receiver breaks a defensive line — explicitly reuses `line_break_value`
-(§7.5, build order step 11), which doesn't exist yet. Not implemented
-here; revisit `engine/metrics/throw_in.py` once step 11 lands.
+- **throw_in_clever_share** ("Clever"): share of throws where either the
+  throw itself, or the first receiver's next touch, bypasses at least one
+  opponent — reusing `line_break_value`'s bypass detection directly (step
+  11; deferred until that metric existed). Grimaldo (Leverkusen's primary
+  thrower, 197 throws that season): 21.3%.

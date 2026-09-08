@@ -1,0 +1,11 @@
+id: line_break_value
+version: 1
+title: Line-break value
+applies_to: all
+requires:
+  - event.location
+  - event.end_location
+  - freeze_frame
+min_sample: 20
+adjustments: [per_90]
+methodology: docs/metrics/line_break_value.md

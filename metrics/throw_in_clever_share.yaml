@@ -1,0 +1,10 @@
+id: throw_in_clever_share
+version: 1
+title: Throw-in "clever" share (breaks a defensive line)
+applies_to: all
+requires:
+  - pass.set_piece
+  - possession_id
+  - freeze_frame
+min_sample: 20
+methodology: docs/metrics/throw_in_profile.md

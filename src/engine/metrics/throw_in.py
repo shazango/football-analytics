@@ -6,20 +6,55 @@ documented operational choice (empirically checked against this
 warehouse — see docs/metrics/throw_in_profile.md), same spirit as
 progressive-pass (step 6): the brief gives the shape, not exact numbers.
 
-**"Clever"** (does the throw or first receiver break a defensive line) is
-explicitly deferred — the brief says to reuse `line_break_value`, build
-order step 11, which doesn't exist yet. Revisit this module once it does.
+**"Clever"** (does the throw or first receiver break a defensive line)
+reuses line_break_value's bypass detection (step 11, added once that
+existed) — see `_breaks_line`.
 """
 
+import json
 import math
 
 from engine.metrics import registry
+from engine.metrics.line_break import _bypassed_value_and_count
 from engine.metrics.runtime import MetricResult
 
 FAST_THROW_MS = 8000  # ball-out to throw-taken, "quickly" taken
 PRESSED_WINDOW_MS = 8000  # opposing PRESSURE event within this long after the throw counts as "pressed"
 RETAINED_MIN_DURATION_MS = 5000  # throw's own possession chain lasts >= this...
 # ...or ends in a shot by the throwing team, whichever comes first: "retained".
+
+
+def _row_breaks_line(row: tuple | None) -> bool:
+    if row is None:
+        return False
+    location_x, end_x, freeze_frame_json = row
+    if end_x is None or not freeze_frame_json:
+        return False
+    freeze_frame = json.loads(freeze_frame_json)
+    if not freeze_frame:
+        return False
+    _, count = _bypassed_value_and_count(location_x, end_x, freeze_frame)
+    return count > 0
+
+
+def _breaks_line(con, fixture_id: int, sequence: int, team_id: int, possession_id: int) -> bool:
+    """"Clever": does the throw itself, or the first receiver's next touch
+    in the same chain, bypass at least one opponent (line_break_value's
+    detection, step 11)?"""
+    throw_row = con.execute(
+        "select location_x, end_x, freeze_frame from event where fixture_id = ? and sequence = ?",
+        [fixture_id, sequence],
+    ).fetchone()
+    if _row_breaks_line(throw_row):
+        return True
+
+    next_row = con.execute(
+        "select location_x, end_x, freeze_frame from event where fixture_id = ? "
+        "and possession_id = ? and sequence > ? and team_id = ? and type in ('PASS', 'CARRY') "
+        "order by sequence asc limit 1",
+        [fixture_id, possession_id, sequence, team_id],
+    ).fetchone()
+    return _row_breaks_line(next_row)
 
 
 def _derive_throw(con, row: tuple) -> dict:
@@ -58,6 +93,7 @@ def _derive_throw(con, row: tuple) -> dict:
 
     distance = math.hypot(end_x - x, end_y - y) if end_x is not None else None
     territory_gained = (end_x - x) if end_x is not None else None
+    clever = _breaks_line(con, fixture_id, sequence, team_id, possession_id)
 
     return {
         "fast": fast,
@@ -67,6 +103,7 @@ def _derive_throw(con, row: tuple) -> dict:
         "territory_gained": territory_gained,
         "has_aerial": has_aerial,
         "aerial_won": aerial_won,
+        "clever": clever,
     }
 
 
@@ -124,10 +161,13 @@ def _make_thrower_impl(kind: str):
             values = [t["territory_gained"] for t in throws if t["territory_gained"] is not None]
             n = len(values)
             value = sum(values) / n if n else None
-        else:  # aerial_win_rate
+        elif kind == "aerial_win_rate":
             population = [t for t in throws if t["has_aerial"]]
             n = len(population)
             value = 100.0 * sum(t["aerial_won"] for t in population) / n if n else None
+        else:  # clever_share
+            n = len(throws)
+            value = 100.0 * sum(t["clever"] for t in throws) / n if n else None
 
         return MetricResult(value=value, sample_size=n)
 
@@ -146,4 +186,5 @@ registry.register("throw_in_retention_rate")(_make_thrower_impl("retention_rate"
 registry.register("throw_in_distance")(_make_thrower_impl("distance"))
 registry.register("throw_in_territory_gained")(_make_thrower_impl("territory_gained"))
 registry.register("throw_in_aerial_win_rate")(_make_thrower_impl("aerial_win_rate"))
+registry.register("throw_in_clever_share")(_make_thrower_impl("clever_share"))
 registry.register("throw_in_retention_allowed")(_retention_allowed_impl)
