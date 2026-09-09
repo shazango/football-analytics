@@ -315,10 +315,6 @@ def ingest_competition(
             _event_rows(ds, mid),
         )
 
-    # Catch the tackles bug class before trusting anything downstream: a
-    # StatSpec naming a qualifier value the adapter never actually emits
-    # for this provider would otherwise sit there silently returning 0/0.0
-    # for every player, forever.
     foundation.assert_qualifier_values_seen(con)
 
     # Populate metric_value for the whole roster now, not lazily per report:
@@ -326,10 +322,10 @@ def ingest_competition(
     # for a bucket/metric, so a report generated before this ran would only
     # ever benchmark against whichever players happened to have a report of
     # their own generated earlier — never the actual roster.
-    foundation_defs = {
-        stat_id: defn for stat_id, defn in load_all().items() if stat_id in FOUNDATION_STAT_IDS
-    }
-    compute_roster_metrics(con, foundation_defs, competition_row_id, season_name)
+    defs = load_all()
+    compute_roster_metrics(
+        con, {sid: defs[sid] for sid in FOUNDATION_STAT_IDS}, competition_row_id, season_name
+    )
 
 
 def _main() -> None:

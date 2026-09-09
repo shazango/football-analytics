@@ -54,7 +54,7 @@ class StatSpec:
     value_expr: str = "1"  # SQL expression summed per matching row; "1" = count
 
 
-def qualifier_contains(key: str, value: str, column: str = "e.qualifiers") -> str:
+def qualifier_contains(key: str, value: str, column: str) -> str:
     """SQL fragment: does this event's `qualifiers[key]` list contain
     `value`? Qualifier values are stored as JSON arrays per key, not
     scalars — kloppy can legitimately attach more than one value of the
@@ -81,7 +81,7 @@ STAT_SPECS: dict[str, StatSpec] = {
         value_expr="try_cast(json_extract(e.qualifiers, '$.xA') as double)",
     ),
     "key_passes": StatSpec(
-        f"e.type = 'PASS' and ({qualifier_contains('Pass', 'SHOT_ASSIST')})"
+        f"e.type = 'PASS' and ({qualifier_contains('Pass', 'SHOT_ASSIST', 'e.qualifiers')})"
     ),
     "progressive_passes": StatSpec(
         f"e.type = 'PASS' and e.outcome = 'COMPLETE' and ({_PROGRESSIVE_SQL})"
@@ -95,13 +95,13 @@ STAT_SPECS: dict[str, StatSpec] = {
     # ball contest is Duel=[LOOSE_BALL, GROUND]. Excluding LOOSE_BALL is
     # what separates the two. See docs/metrics/tackles.md.
     "tackles": StatSpec(
-        f"e.type = 'DUEL' and ({qualifier_contains('Duel', 'GROUND')}) "
-        f"and not ({qualifier_contains('Duel', 'LOOSE_BALL')})"
+        f"e.type = 'DUEL' and ({qualifier_contains('Duel', 'GROUND', 'e.qualifiers')}) "
+        f"and not ({qualifier_contains('Duel', 'LOOSE_BALL', 'e.qualifiers')})"
     ),
     "interceptions": StatSpec("e.type = 'INTERCEPTION'"),
     "recoveries": StatSpec("e.type = 'RECOVERY'"),
     "aerials": StatSpec(
-        f"e.type = 'DUEL' and ({qualifier_contains('Duel', 'AERIAL')}) "
+        f"e.type = 'DUEL' and ({qualifier_contains('Duel', 'AERIAL', 'e.qualifiers')}) "
         "and e.outcome = 'WON'"
     ),
 }

@@ -262,3 +262,45 @@ def test_ratio_metric_rejects_adjustment(thirds_con):
     with pytest.raises(ValueError, match="ratio"):
         impl(thirds_con, definition=RATIO_DEFN, person_id=101, competition_id="C1",
              season="S1", adjustment="per_90")
+
+
+# --- ingest-time guard: assert_qualifier_values_seen ----------------------
+#
+# The original tackles bug: the spec asked for a Duel value kloppy never
+# emits for StatsBomb, so it matched nothing, forever, and rendered as a
+# confident 0.00 rather than "insufficient sample".
+
+@pytest.fixture
+def duel_con(con):
+    con.execute("insert into fixture values (31, 'C1', 1, 2, NULL)")
+    return con
+
+
+def test_guard_passes_when_every_referenced_value_appears(duel_con):
+    _insert_event(duel_con, 31, 0, 1, "DUEL", qualifiers={"Duel": ["GROUND"]})
+    _insert_event(duel_con, 31, 1, 1, "DUEL", qualifiers={"Duel": ["LOOSE_BALL", "GROUND"]})
+    foundation.assert_qualifier_values_seen(
+        duel_con, {"tackles": foundation.STAT_SPECS["tackles"]}
+    )
+
+
+def test_guard_raises_when_value_never_appears(duel_con):
+    _insert_event(duel_con, 31, 0, 1, "DUEL", qualifiers={"Duel": ["GROUND"]})
+    spec = foundation.StatSpec(
+        foundation.qualifier_contains("Duel", "SLIDING_TACKLE", "e.qualifiers")
+    )
+    with pytest.raises(ValueError, match="SLIDING_TACKLE"):
+        foundation.assert_qualifier_values_seen(duel_con, {"_never_matches": spec})
+
+
+def test_guard_raises_on_a_negated_value_that_never_appears(duel_con):
+    # Why the guard parses the spec's referenced values rather than just
+    # running its event_where: `tackles` is "GROUND and not LOOSE_BALL", so
+    # with no LOOSE_BALL in the data the predicate still matches rows and
+    # looks healthy — while the exclusion silently does nothing and every
+    # 50/50 would count as a tackle. Only checking the values catches it.
+    _insert_event(duel_con, 31, 0, 1, "DUEL", qualifiers={"Duel": ["GROUND"]})
+    with pytest.raises(ValueError, match="LOOSE_BALL"):
+        foundation.assert_qualifier_values_seen(
+            duel_con, {"tackles": foundation.STAT_SPECS["tackles"]}
+        )
