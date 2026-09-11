@@ -14,6 +14,7 @@ import pytest
 
 from engine.ingest.statsbomb import ingest_competition
 from engine.metrics import psxg
+from engine.metrics.benchmark import MIN_BENCHMARK_N
 from engine.metrics.psxg import PSxGModel
 from engine.model.schema import ensure_schema
 from engine.render.json_renderer import render_json
@@ -79,6 +80,34 @@ def test_every_foundation_metric_carries_provenance(con, keeper_id):
         assert m["definition_version"] >= 1
         assert isinstance(m["sample_size"], int)
         assert m["suppressed"] == (m["sample_size"] < m["min_sample"])
+        assert m["benchmark_suppressed"] == (m["benchmark_n"] < m["benchmark_min_n"])
+
+
+def test_percentile_is_suppressed_against_a_tiny_comparison_set(con, keeper_id):
+    # The fixture slice is one match, so most position buckets hold one or
+    # two qualifying players. A percentile against a set that includes the
+    # subject and almost nobody else is 1.00 by construction — it has to
+    # come out marked, not as a confident 100th percentile.
+    report = build_report(con, keeper_id, "9-281", "2023/2024")
+    tiny = [m for m in report["foundation_metrics"] if m["benchmark_n"] < MIN_BENCHMARK_N]
+    assert tiny, "expected at least one under-populated benchmark in this fixture"
+    for m in tiny:
+        assert m["benchmark_suppressed"]
+        # The raw number still rides along for the JSON renderer (brief §9).
+        assert "benchmark_percentile" in m
+
+    for m in report["foundation_metrics"]:
+        if m["benchmark_n"] >= MIN_BENCHMARK_N:
+            assert not m["benchmark_suppressed"]
+
+
+def test_xlsx_marks_a_tiny_comparison_set(con, keeper_id, tmp_path):
+    report = build_report(con, keeper_id, "9-281", "2023/2024")
+    out = tmp_path / "report.xlsx"
+    render_xlsx(report, out)
+    import zipfile
+    strings = zipfile.ZipFile(out).read("xl/sharedStrings.xml").decode()
+    assert "insufficient comparison set" in strings
 
 
 def test_json_renderer_writes_valid_file(con, keeper_id, tmp_path):

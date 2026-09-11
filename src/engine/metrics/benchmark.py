@@ -164,6 +164,23 @@ def compute_benchmark(
     return {"n": n, "values": values}
 
 
+# Smallest distribution a percentile may be reported against (brief §9:
+# "never a bare number" — a number placed against a comparison set of one
+# is a bare number wearing a percentile).
+#
+# A player is *in* their own benchmark distribution, so at n=1 the
+# distribution is literally just them and percentile_rank always returns
+# 1.00 — Leverkusen's goalkeeper benchmarked 100th percentile for
+# line_break_value against a population consisting of himself. Below 5 the
+# subject is a fifth or more of the set they're being placed within, and
+# the percentile can only take n distinct values (at n=2: 0.50 or 1.00),
+# so its two decimal places claim a precision that doesn't exist.
+#
+# Reports carry the number anyway and mark it — suppression is a rendering
+# decision (brief §6), same as sub-min_sample values.
+MIN_BENCHMARK_N = 5
+
+
 def percentile_rank(distribution_values: list[float], value: float) -> float:
     """Share of the distribution at or below `value`, in [0, 1]. Sorted
     input assumed (as stored). Used by reports (step 13) to place a player

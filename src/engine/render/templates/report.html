@@ -35,7 +35,13 @@
     {% else %}
     <td>{{ "%.2f"|format(m.value) }}</td>
     {% endif %}
-    <td>{% if m.benchmark_percentile is not none %}{{ "%.0f"|format(m.benchmark_percentile * 100) }}th{% else %}n/a{% endif %}</td>
+    {% if m.benchmark_suppressed %}
+    <td class="suppressed">vs {{ m.benchmark_n }} player{{ "" if m.benchmark_n == 1 else "s" }} &mdash; too few to rank</td>
+    {% elif m.benchmark_percentile is not none %}
+    <td>{{ "%.0f"|format(m.benchmark_percentile * 100) }}th</td>
+    {% else %}
+    <td>n/a</td>
+    {% endif %}
     <td>{{ m.sample_size }}</td>
   </tr>
   {% endfor %}

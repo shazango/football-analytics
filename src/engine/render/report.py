@@ -25,7 +25,13 @@ from engine.metrics import (  # noqa: F401 (registers implementations)
     supply,
     throw_in,
 )
-from engine.metrics.benchmark import FOUNDATION_STAT_IDS, compute_benchmark, percentile_rank, position_bucket
+from engine.metrics.benchmark import (
+    FOUNDATION_STAT_IDS,
+    MIN_BENCHMARK_N,
+    compute_benchmark,
+    percentile_rank,
+    position_bucket,
+)
 from engine.metrics.definitions import load_all
 from engine.metrics.runtime import compute_and_store
 
@@ -73,6 +79,10 @@ def _metric_entry(con, defn, person_id, competition_id, season, adjustment=None)
 def _with_benchmark(con, entry: dict, defn, competition_id, season, bucket, adjustment=None) -> dict:
     dist = compute_benchmark(con, defn, competition_id, season, bucket, adjustment=adjustment)
     entry["benchmark_n"] = dist["n"]
+    entry["benchmark_min_n"] = MIN_BENCHMARK_N
+    # Same shape as "suppressed" above: the IR carries the number and says
+    # it shouldn't be shown, rather than deciding that for the renderers.
+    entry["benchmark_suppressed"] = dist["n"] < MIN_BENCHMARK_N
     entry["benchmark_percentile"] = (
         percentile_rank(dist["values"], entry["value"])
         if entry["value"] is not None and dist["values"]

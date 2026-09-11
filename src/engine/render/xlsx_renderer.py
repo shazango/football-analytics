@@ -31,7 +31,12 @@ def _write_metric_table(sheet, rows: list[dict], bold, has_benchmark: bool) -> N
         sheet.write(r, 3, entry["min_sample"])
         if has_benchmark:
             pct = entry.get("benchmark_percentile")
-            sheet.write(r, 4, round(pct * 100, 1) if pct is not None else "n/a")
+            if entry.get("benchmark_suppressed"):
+                # Benchmark n is written alongside, so the reader can see
+                # how small the set was rather than just that it was small.
+                sheet.write(r, 4, "insufficient comparison set")
+            else:
+                sheet.write(r, 4, round(pct * 100, 1) if pct is not None else "n/a")
             sheet.write(r, 5, entry.get("benchmark_n", "n/a"))
 
 
