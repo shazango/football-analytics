@@ -33,18 +33,6 @@ ORDINAL_BELOW_N = 20
 
 MAX_CLAIMS_PER_DIRECTION = 3
 
-# How far from the positional median a value must sit before it is worth a
-# sentence, in median absolute deviations.
-#
-# Landing in a non-typical band is not enough on a small comparison set. At
-# n=7 a percentile is really a rank, so 6th of 7 lands at the 14th
-# percentile and reads "below par" however close the numbers are: Xhaka's
-# 1.22 key passes per 90 against a median of 1.26 — one key pass every
-# thirty matches — was being asserted as a weakness. One MAD is the point
-# at which a value is distinguishable from typical rather than merely
-# ordered behind it.
-NOTABLE_DISTANCE_MADS = 1.0
-
 BUCKET_NOUN = {
     "GK": "goalkeepers",
     "DF": "defenders",
@@ -55,10 +43,17 @@ BUCKET_NOUN = {
 
 @dataclass(frozen=True)
 class VerdictBands:
+    """The versioned ruleset that decides what a report is allowed to
+    assert: which word a percentile earns, and how far from typical a
+    value must sit before it earns a sentence at all. Both belong to the
+    same version — each decides what the report says."""
+
     version: int
     methodology: str
     # (min_percentile, verdict, direction), ordered high to low.
     bands: tuple[tuple[float, str, str], ...]
+    # Minimum distance from the positional median, in MADs, for a claim.
+    notable_distance_mads: float
 
     def classify(self, percentile: float) -> tuple[str, str]:
         """(verdict, direction) for a percentile in [0, 1]. Boundaries are
@@ -84,7 +79,20 @@ def load_bands(path: Path = DEFAULT_BANDS_PATH) -> VerdictBands:
         (float(b["min_percentile"]), b["verdict"], b["direction"])
         for b in sorted(raw["bands"], key=lambda b: -b["min_percentile"])
     )
-    return VerdictBands(version=raw["version"], methodology=methodology, bands=bands)
+    if "notable_distance_mads" not in raw:
+        # Not defaulted: a ruleset that doesn't state its floor would
+        # silently inherit whatever the code last thought it was, which is
+        # the thing versioning this is meant to prevent.
+        raise KeyError(
+            f"verdict bands '{path}' must declare notable_distance_mads "
+            "(see docs/verdict_bands.md)"
+        )
+    return VerdictBands(
+        version=raw["version"],
+        methodology=methodology,
+        bands=bands,
+        notable_distance_mads=float(raw["notable_distance_mads"]),
+    )
 
 
 def _ordinal(n: int) -> str:
@@ -141,9 +149,13 @@ def _sort_distance(claim: dict) -> float:
     return float("inf") if distance is None else distance
 
 
-def _notable(claim: dict) -> bool:
+def _notable(claim: dict, bands: VerdictBands) -> bool:
+    """Landing in a non-typical band is not enough. On a small comparison
+    set a percentile is really an ordinal — 6th of 7 is the 14th
+    percentile whatever the numbers say — so without a distance floor
+    rank noise becomes a verdict."""
     distance = claim["distance_from_median"]
-    return distance is None or distance >= NOTABLE_DISTANCE_MADS
+    return distance is None or distance >= bands.notable_distance_mads
 
 
 def _claimable(entry: dict) -> bool:
@@ -186,20 +198,23 @@ def build_claims(
     foundation_metrics: list[dict], position_bucket: str, bands: VerdictBands
 ) -> dict:
     """Up to three strengths and up to three weaknesses, furthest from the
-    positional median first, and only where that distance clears
-    NOTABLE_DISTANCE_MADS. Fewer if fewer qualify — never padded, and a
-    player with nothing notable gets none."""
+    positional median first, and only where that distance clears the
+    ruleset's notable_distance_mads. Fewer if fewer qualify — never
+    padded, and a player with nothing notable gets none."""
     noun = BUCKET_NOUN.get(position_bucket, "players")
     claims = [_claim(e, bands, noun) for e in foundation_metrics if _claimable(e)]
 
     def top(direction: str) -> list[dict]:
-        selected = [c for c in claims if c["direction"] == direction and _notable(c)]
+        selected = [c for c in claims if c["direction"] == direction and _notable(c, bands)]
         selected.sort(key=_sort_distance, reverse=True)
         return selected[:MAX_CLAIMS_PER_DIRECTION]
 
     return {
         "band_version": bands.version,
         "methodology": bands.methodology,
+        # Carried so the JSON says which floor filtered it, not only which
+        # bands judged it.
+        "notable_distance_mads": bands.notable_distance_mads,
         "strengths": top("strength"),
         "weaknesses": top("weakness"),
         # Why a report that should have claims has none: the reader needs
@@ -209,7 +224,7 @@ def build_claims(
         # Judged, in a strength/weakness band, but too close to the
         # positional median to be worth asserting.
         "not_notable": sum(
-            1 for c in claims if c["direction"] != "neutral" and not _notable(c)
+            1 for c in claims if c["direction"] != "neutral" and not _notable(c, bands)
         ),
     }
 

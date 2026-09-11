@@ -73,10 +73,19 @@ free.
 
 Metrics in the *typical* band are never surfaced, in either direction.
 
-### The one-MAD floor
+### The distance floor
 
 Landing in a non-typical band is not enough. A claim must also sit at
-least **one MAD** from the positional median.
+least `notable_distance_mads` from the positional median — currently
+**1.0 MAD**.
+
+This lives in `bands/verdict_bands.yaml` under the same version as the
+bands themselves, because it decides what the report asserts just as much
+as they do. A report stamps `band_version`, so changing the floor is a
+version bump and a reviewable diff rather than an edit to a constant, and
+two reports generated either side of a change are distinguishable. A
+bands file that does not declare it fails to load rather than inheriting
+a default.
 
 Without the floor, rank noise becomes a verdict. On a comparison set of
 seven, a percentile is really an ordinal — 6th of 7 is the 14th

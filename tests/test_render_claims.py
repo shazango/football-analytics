@@ -12,7 +12,6 @@ from pathlib import Path
 import pytest
 
 from engine.render.claims import (
-    NOTABLE_DISTANCE_MADS,
     ORDINAL_BELOW_N,
     VerdictBands,
     _claimable,
@@ -69,9 +68,23 @@ def test_bands_require_an_existing_methodology_page(tmp_path):
     bad = tmp_path / "bands.yaml"
     bad.write_text(
         "id: verdict_bands\nversion: 1\nmethodology: docs/nope.md\n"
+        "notable_distance_mads: 1.0\n"
         "bands:\n  - {verdict: elite, min_percentile: 90, direction: strength}\n"
     )
     with pytest.raises(FileNotFoundError, match="docs/nope.md"):
+        load_bands(bad)
+
+
+def test_bands_must_declare_their_distance_floor(tmp_path):
+    # Not defaulted: a ruleset that doesn't state its floor would silently
+    # inherit whatever the code last thought it was, which is what
+    # versioning the floor exists to prevent.
+    bad = tmp_path / "bands.yaml"
+    bad.write_text(
+        "id: verdict_bands\nversion: 1\nmethodology: docs/verdict_bands.md\n"
+        "bands:\n  - {verdict: elite, min_percentile: 90, direction: strength}\n"
+    )
+    with pytest.raises(KeyError, match="notable_distance_mads"):
         load_bands(bad)
 
 
@@ -180,8 +193,8 @@ def test_floor_boundary_is_inclusive():
                        benchmark_mad=1.0, benchmark_percentile=0.95)
         return bool(build_claims([entry], "MF", BANDS)["strengths"])
 
-    assert qualifies(NOTABLE_DISTANCE_MADS)
-    assert not qualifies(NOTABLE_DISTANCE_MADS - 0.01)
+    assert qualifies(BANDS.notable_distance_mads)
+    assert not qualifies(BANDS.notable_distance_mads - 0.01)
 
 
 def test_no_spread_counts_as_maximally_distant():
@@ -242,17 +255,40 @@ def test_band_version_rides_on_every_claim_and_changes_the_output():
 
     # Bumping the version changes stored output: a regression golden that
     # pins band_version has to be re-approved rather than drifting.
-    bumped = VerdictBands(version=BANDS.version + 1, methodology=BANDS.methodology,
-                          bands=BANDS.bands)
+    bumped = VerdictBands(
+        version=BANDS.version + 1, methodology=BANDS.methodology, bands=BANDS.bands,
+        notable_distance_mads=BANDS.notable_distance_mads,
+    )
     after = build_claims([_entry()], "MF", bumped)
     assert after != claims
     assert after["strengths"][0]["band_version"] == BANDS.version + 1
+
+
+def test_the_distance_floor_belongs_to_the_ruleset():
+    # Raising the floor is a ruleset change, so it must come from the
+    # versioned bands and be visible in the output — not from a constant
+    # that two reports could straddle indistinguishably.
+    entry = _entry(value=23.5, benchmark_median=21.5, benchmark_mad=1.0,
+                   benchmark_percentile=0.95)  # 2 MADs out
+    claims = build_claims([entry], "MF", BANDS)
+    assert claims["notable_distance_mads"] == BANDS.notable_distance_mads
+    assert len(claims["strengths"]) == 1
+
+    stricter = VerdictBands(
+        version=BANDS.version + 1, methodology=BANDS.methodology, bands=BANDS.bands,
+        notable_distance_mads=3.0,
+    )
+    after = build_claims([entry], "MF", stricter)
+    assert after["strengths"] == []
+    assert after["not_notable"] == 1
+    assert after["notable_distance_mads"] == 3.0
 
 
 def test_shipped_bands_match_the_documented_table():
     # The methodology page publishes these; a silent edit to the YAML
     # would make the page a lie.
     assert BANDS.version == 1
+    assert BANDS.notable_distance_mads == 1.0
     assert [(p, v) for p, v, _ in BANDS.bands] == [
         (90.0, "elite"), (75.0, "strong"), (40.0, "typical"),
         (15.0, "below par"), (0.0, "weak"),

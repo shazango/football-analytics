@@ -48,8 +48,8 @@
   {{ report.claims.suppressed + report.claims.eligible }} foundation metrics
   could not be judged — sample or comparison set too small.{% endif %}
   {% if report.claims.not_notable %}{{ report.claims.not_notable }} sat outside the
-  typical band but within one MAD of the positional median — too close to
-  assert.{% endif %}
+  typical band but within {{ report.claims.notable_distance_mads }} MAD of the
+  positional median — too close to assert.{% endif %}
 </p>
 
 <div class="section-title">Foundation metrics</div>

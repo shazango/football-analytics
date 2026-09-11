@@ -9,6 +9,15 @@ id: verdict_bands
 version: 1
 methodology: docs/verdict_bands.md
 
+# How far from the positional median a value must sit before it earns a
+# sentence, in median absolute deviations. Part of the versioned ruleset
+# because it decides what a report asserts just as much as the bands do:
+# without it, rank noise on a seven-player comparison set becomes a
+# verdict (Xhaka's 1.22 key passes per 90 against a median of 1.26 read
+# as "below par"). A report stamps band_version, so raising this has to
+# be a version bump and a visible diff, not an edit to a constant.
+notable_distance_mads: 1.0
+
 # Ordered high to low. The first band whose min_percentile the value meets
 # or exceeds wins, so boundaries are inclusive at the bottom: exactly 90
 # reads elite, 89 reads strong.
