@@ -5,4 +5,5 @@ applies_to: goalkeeper
 requires:
   - shot.under_pressure
 min_sample: 40
+unit: percent
 methodology: docs/metrics/defensive_context.md

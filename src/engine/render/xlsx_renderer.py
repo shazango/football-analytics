@@ -15,29 +15,41 @@ def _display_value(entry: dict):
         return "no data"
     if entry["suppressed"]:
         return "insufficient sample"
+    if entry.get("ci_low") is not None:
+        # A bootstrap metric's interval is part of its value (brief §6), so
+        # the cell has to carry it. Costs the numeric cell type, which is
+        # why the raw value and both bounds get columns of their own below.
+        return entry["display_value"]
     return entry["value"]
 
 
 def _write_metric_table(sheet, rows: list[dict], bold, has_benchmark: bool) -> None:
-    headers = ["Metric", "Value", "Sample size", "Min sample"]
+    headers = ["Metric", "Value", "Unit", "CI low", "CI high", "Sample size", "Min sample"]
     if has_benchmark:
-        headers += ["Percentile", "Benchmark n"]
+        headers += ["Comparison", "Percentile", "Benchmark n"]
     for col, header in enumerate(headers):
         sheet.write(0, col, header, bold)
     for r, entry in enumerate(rows, start=1):
         sheet.write(r, 0, entry["title"])
         sheet.write(r, 1, _display_value(entry))
-        sheet.write(r, 2, entry["sample_size"])
-        sheet.write(r, 3, entry["min_sample"])
+        sheet.write(r, 2, entry.get("unit") or ("per 90" if entry.get("adjustment") == "per_90" else ""))
+        sheet.write(r, 3, entry.get("ci_low") if entry.get("ci_low") is not None else "")
+        sheet.write(r, 4, entry.get("ci_high") if entry.get("ci_high") is not None else "")
+        sheet.write(r, 5, entry["sample_size"])
+        sheet.write(r, 6, entry["min_sample"])
         if has_benchmark:
             pct = entry.get("benchmark_percentile")
             if entry.get("benchmark_suppressed"):
                 # Benchmark n is written alongside, so the reader can see
                 # how small the set was rather than just that it was small.
-                sheet.write(r, 4, "insufficient comparison set")
+                sheet.write(r, 7, "insufficient comparison set")
+                sheet.write(r, 8, "insufficient comparison set")
             else:
-                sheet.write(r, 4, round(pct * 100, 1) if pct is not None else "n/a")
-            sheet.write(r, 5, entry.get("benchmark_n", "n/a"))
+                # The same sentence fragment the PDF prints, plus the raw
+                # percentile for anyone building on the sheet.
+                sheet.write(r, 7, entry.get("benchmark_comparison") or "n/a")
+                sheet.write(r, 8, round(pct * 100, 1) if pct is not None else "n/a")
+            sheet.write(r, 9, entry.get("benchmark_n", "n/a"))
 
 
 def render_xlsx(report: dict, path: Path) -> None:
@@ -76,7 +88,7 @@ def render_xlsx(report: dict, path: Path) -> None:
                 claim["verdict"],
                 claim["value"],
                 claim["benchmark_median"],
-                f"{claim['benchmark_rank']} of {claim['benchmark_n']}",
+                claim["comparison"],
                 claim["benchmark_n"],
                 claim["comparison_basis"],
                 claim["band_version"],

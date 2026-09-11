@@ -7,4 +7,4 @@ requires:
   - event.end_location
 min_sample: 450
 adjustments: [per_90, possession, opposition_strength]
-methodology: docs/metrics/progressive_passes.md
+methodology: docs/metrics/progressive_carries.md

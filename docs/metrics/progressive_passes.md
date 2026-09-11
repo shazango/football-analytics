@@ -1,4 +1,8 @@
-# progressive_passes / progressive_carries
+# progressive_passes
+
+Carries have their own page:
+[progressive_carries.md](progressive_carries.md). The progression
+threshold below is shared by both and implemented once.
 
 No single formula for "progressive" is standard across the industry —
 published definitions vary in threshold and units. Ours, explicit and

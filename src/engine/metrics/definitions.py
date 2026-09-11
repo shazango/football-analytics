@@ -25,6 +25,12 @@ class MetricDefinition:
     requires: list[str] = field(default_factory=list)
     adjustments: list[str] = field(default_factory=list)
     confidence: str = "point"  # "point" | "bootstrap"
+    # How the value is written down: "percent", "metres", or absent. A
+    # property of the metric, not something to infer at render time from
+    # whether it carries a per-90 adjustment — psxg_ga and
+    # pass_completion_middle_third are both adjustment-free, and one is
+    # goals while the other is a percentage. See engine/render/format.py.
+    unit: str | None = None
     # Step 12: which game-state windows (if any) this metric can be
     # re-scoped to — "leading" | "level" | "trailing_1" | "trailing_2plus"
     # | "after_conceding_10min". Empty means whole-season only.
@@ -51,6 +57,7 @@ def load_definition(path: Path) -> MetricDefinition:
         requires=raw.get("requires", []),
         adjustments=raw.get("adjustments", []),
         confidence=raw.get("confidence", "point"),
+        unit=raw.get("unit"),
         game_state_buckets=raw.get("game_state_buckets", []),
     )
 

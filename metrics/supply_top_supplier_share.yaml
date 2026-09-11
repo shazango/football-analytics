@@ -6,4 +6,5 @@ requires:
   - shot.xg
   - possession_id
 min_sample: 10
+unit: percent
 methodology: docs/metrics/supply_attribution.md

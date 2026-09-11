@@ -23,13 +23,14 @@ from statistics import median
 
 import yaml
 
-DEFAULT_BANDS_PATH = Path("bands/verdict_bands.yaml")
+from engine.render.format import (
+    ORDINAL_BELOW_N,
+    comparison_phrase,
+    comparison_short,
+    format_value,
+)
 
-# Below this many comparators a claim states its ordinal ("4th of 7")
-# rather than its percentile: over seven players a percentile can only
-# take seven values, and rendering 85.7 claims a precision that isn't
-# there.
-ORDINAL_BELOW_N = 20
+DEFAULT_BANDS_PATH = Path("bands/verdict_bands.yaml")
 
 MAX_CLAIMS_PER_DIRECTION = 3
 
@@ -95,34 +96,6 @@ def load_bands(path: Path = DEFAULT_BANDS_PATH) -> VerdictBands:
     )
 
 
-def _ordinal(n: int) -> str:
-    if 10 <= n % 100 <= 20:
-        suffix = "th"
-    else:
-        suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
-    return f"{n}{suffix}"
-
-
-def _format_value(value: float, adjustment: str | None) -> str:
-    # Three significant figures, not fixed decimals: these metrics span
-    # xG near 0.05 and pass completion near 90, and "%.1f" turns Xhaka's
-    # 0.047 xG into "0.0 per 90" — a sentence claiming he generated
-    # literally none.
-    return f"{value:.3g} per 90" if adjustment == "per_90" else f"{value:.3g}%"
-
-
-def _comparison_phrase(entry: dict, noun: str) -> str:
-    n = entry["benchmark_n"]
-    if n >= ORDINAL_BELOW_N:
-        return f"{_ordinal(round(entry['benchmark_percentile'] * 100))} percentile of {n} {noun}"
-    rank = entry["benchmark_rank"]
-    if rank == 1:
-        return f"highest of {n} {noun} in the comparison set"
-    if rank == n:
-        return f"lowest of {n} {noun} in the comparison set"
-    return f"{_ordinal(rank)} of {n} {noun} in the comparison set"
-
-
 def _distance_from_median(entry: dict) -> float | None:
     """How far from typical, in median absolute deviations.
 
@@ -172,9 +145,13 @@ def _claimable(entry: dict) -> bool:
 
 def _claim(entry: dict, bands: VerdictBands, noun: str) -> dict:
     verdict, direction = bands.classify(entry["benchmark_percentile"])
-    value_text = _format_value(entry["value"], entry.get("adjustment"))
-    median_text = _format_value(entry["benchmark_median"], entry.get("adjustment"))
-    comparison = _comparison_phrase(entry, noun)
+    # The same strings the tables print: one formatter, so the summary
+    # and the table beside it can no longer disagree about the same number.
+    value_text = entry["display_value"]
+    median_text = format_value(
+        entry["benchmark_median"], entry.get("unit"), entry.get("adjustment")
+    )
+    comparison = comparison_phrase(entry, noun)
     # Split at source rather than leaving a renderer to find the verdict
     # inside `text` by slicing at a character offset: the PDF sets the
     # headline bold and the evidence regular, and a title with a non-ASCII
@@ -193,6 +170,7 @@ def _claim(entry: dict, bands: VerdictBands, noun: str) -> dict:
         "benchmark_percentile": entry["benchmark_percentile"],
         "benchmark_median": entry["benchmark_median"],
         "benchmark_rank": entry["benchmark_rank"],
+        "comparison": comparison_short(entry),
         "comparison_basis": "percentile" if entry["benchmark_n"] >= ORDINAL_BELOW_N else "ordinal",
         "distance_from_median": _distance_from_median(entry),
         "band_version": bands.version,

@@ -7,4 +7,5 @@ requires:
   - possession_id
   - duel.type
 min_sample: 5
+unit: percent
 methodology: docs/metrics/throw_in_profile.md

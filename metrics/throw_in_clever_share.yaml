@@ -7,4 +7,5 @@ requires:
   - possession_id
   - freeze_frame
 min_sample: 20
+unit: percent
 methodology: docs/metrics/throw_in_profile.md

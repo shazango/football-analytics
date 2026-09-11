@@ -6,4 +6,5 @@ requires:
   - pass.set_piece
   - possession_id
 min_sample: 20
+unit: percent
 methodology: docs/metrics/throw_in_profile.md

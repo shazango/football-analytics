@@ -7,4 +7,5 @@ requires:
   - event.outcome
 min_sample: 20
 adjustments: []
+unit: percent
 methodology: docs/metrics/pass_completion_by_third.md

@@ -35,6 +35,7 @@ from engine.metrics.benchmark import (
 from engine.metrics.definitions import load_all
 from engine.metrics.runtime import compute_and_store
 from engine.render.claims import benchmark_stats, build_claims, load_bands
+from engine.render.format import comparison_short, format_value
 
 ATTRIBUTION = (
     "Data: StatsBomb Open Data "
@@ -71,6 +72,13 @@ def _metric_entry(con, defn, person_id, competition_id, season, adjustment=None)
         "ci_high": result.ci_high,
         "confidence": defn.confidence,
         "adjustment": adjustment,
+        "unit": defn.unit,
+        # The one string every renderer prints. A bootstrap metric's
+        # interval is built into it, so "never a bare point estimate"
+        # (brief §6) holds without each renderer remembering to check.
+        "display_value": format_value(
+            result.value, defn.unit, adjustment, result.ci_low, result.ci_high
+        ),
         "methodology": defn.methodology,
         "definition_version": defn.version,
         "computed_at": result.computed_at,
@@ -93,6 +101,10 @@ def _with_benchmark(con, entry: dict, defn, competition_id, season, bucket, adju
     # Median/MAD/rank: what a claim needs to say *what* the player is being
     # compared against, not only where they finished in it.
     entry.update(benchmark_stats(dist["values"], entry["value"]))
+    entry["benchmark_comparison"] = comparison_short(entry)
+    entry["benchmark_median_display"] = format_value(
+        entry["benchmark_median"], entry.get("unit"), entry.get("adjustment")
+    )
     return entry
 
 
@@ -160,6 +172,9 @@ def build_report(con, person_id: int, competition_id: str, season: str) -> dict:
                 "sample_size": result.sample_size,
                 "min_sample": defn.min_sample,
                 "suppressed": result.sample_size < defn.min_sample,
+                "display_value": format_value(
+                    result.value, defn.unit, "per_90", result.ci_low, result.ci_high
+                ),
                 "computed_at": result.computed_at,
                 "input_hash": result.input_hash,
             })

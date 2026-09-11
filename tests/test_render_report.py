@@ -147,3 +147,49 @@ def test_pdf_renders_the_goalkeeper_whose_report_is_mostly_suppressed(con, keepe
     out = tmp_path / "gk.pdf"
     render_pdf(report, out)
     assert out.stat().st_size > 10_000
+
+
+def test_bootstrap_metric_renders_with_its_interval(con, keeper_id, tmp_path):
+    # psxg_ga declares confidence: bootstrap. The interval was being
+    # computed and then dropped at render — the GK panel showed a bare
+    # 0.167. Brief §6: never a bare point estimate for these.
+    report = build_report(con, keeper_id, "9-281", "2023/2024")
+    bootstrap = [m for m in report["position_panel"] if m["confidence"] == "bootstrap"]
+    assert bootstrap, "expected the GK panel to carry a bootstrap metric"
+    for m in bootstrap:
+        assert m["ci_low"] is not None and m["ci_high"] is not None
+        assert " to " in m["display_value"], m["display_value"]
+        assert m["display_value"].endswith(")")
+
+    # Suppression still wins: a sub-min_sample value shows its suppression
+    # text, interval or not. Everything above threshold must show the
+    # interval in the sheet, not a bare number.
+    out = tmp_path / "r.xlsx"
+    render_xlsx(report, out)
+    import zipfile
+    strings = zipfile.ZipFile(out).read("xl/sharedStrings.xml").decode()
+    for m in bootstrap:
+        expected = "insufficient sample" if m["suppressed"] else m["display_value"]
+        assert expected in strings
+
+
+def test_no_rendered_ordinal_exceeds_its_comparison_set(con, keeper_id):
+    report = build_report(con, keeper_id, "9-281", "2023/2024")
+    for m in report["foundation_metrics"]:
+        comparison = m.get("benchmark_comparison")
+        if comparison is None or "percentile" in comparison:
+            continue
+        stated = int(comparison.split()[0].rstrip("stndrh"))
+        assert stated <= m["benchmark_n"], f"{m['id']}: {comparison}"
+
+
+def test_every_methodology_path_resolves(con, keeper_id):
+    report = build_report(con, keeper_id, "9-281", "2023/2024")
+    entries = (
+        report["foundation_metrics"]
+        + (report["position_panel"] or [])
+        + (report["throw_in_profile"] or [])
+    )
+    for m in entries:
+        assert Path(m["methodology"]).exists(), f"{m['id']} -> {m['methodology']}"
+    assert Path(report["claims"]["methodology"]).exists()

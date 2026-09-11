@@ -15,28 +15,8 @@
 #let report = json("report.json")
 
 #let muted(body) = text(fill: rgb("#8a8a8a"), style: "italic", size: 0.85em)[#body]
-
-// Typst prints floats with trailing zeros stripped, so a column of
-// rounded values comes out as "2", "1.31", "90.0" — ragged and hard to
-// scan. Pad back to a fixed width.
-#let fixed(v, digits) = {
-  let s = str(calc.round(v, digits: digits))
-  if digits <= 0 { return s }
-  if not s.contains(".") { s = s + "." }
-  s + "0" * calc.max(0, digits - s.split(".").at(1).len())
-}
-
-// Three significant figures, the same rule the claim sentences use
-// (docs/verdict_bands.md), so a value never appears two ways in one
-// document: 0.0468 in the summary and 0.05 in the table.
-#let sig3(v) = {
-  if v == 0 { return "0.00" }
-  fixed(v, calc.max(0, 2 - calc.floor(calc.log(calc.abs(v), base: 10))))
-}
-
 #let mono(s) = text(font: "DejaVu Sans Mono", size: 0.85em)[#s]
-#let num(v) = if v == none { muted[—] } else { mono(sig3(v)) }
-#let count(v) = if v == none { muted[—] } else { mono(fixed(v, 0)) }
+#let count(v) = if v == none { muted[—] } else { mono(str(v)) }
 
 #set page(
   paper: "a4",
@@ -113,24 +93,21 @@
 
 // --- foundation metrics ---------------------------------------------
 
+// Both cells print a string the IR already built (engine/render/format.py).
+// They used to format here, in parallel with the summary's Python, and the
+// two drifted: "91st percentile of 22 goalkeepers" in the summary against
+// "91th of 22" in the table, with impossibilities like "82th of 60" where a
+// percentile was dressed as an ordinal.
 #let comparison-cell(m) = {
-  if m.benchmark_suppressed {
-    muted[n=#m.benchmark_n, too few]
-  } else if m.benchmark_percentile == none {
-    muted[n/a]
-  } else if m.benchmark_n < claims.ordinal_below_n {
-    // Below the ordinal threshold a percentile can only take n values;
-    // the rank is the honest form (docs/verdict_bands.md).
-    [#m.benchmark_rank of #m.benchmark_n]
-  } else {
-    [#calc.round(m.benchmark_percentile * 100, digits: 0)#super[th] of #m.benchmark_n]
-  }
+  if m.benchmark_suppressed { muted[n=#m.benchmark_n, too few] }
+  else if m.benchmark_comparison == none { muted[n/a] }
+  else { [#m.benchmark_comparison] }
 }
 
 #let value-cell(m) = {
-  if m.value == none { muted[no data] }
+  if m.display_value == none { muted[no data] }
   else if m.suppressed { muted[insufficient sample] }
-  else { num(m.value) }
+  else { mono(m.display_value) }
 }
 
 #let metric-table(rows, with-benchmark) = {
@@ -141,12 +118,18 @@
   let headers = if with-benchmark {
     ([Metric], [Value], [Comparison], [Sample], [Methodology])
   } else { ([Metric], [Value], [Sample], [Methodology]) }
-  // "insufficient sample" has to fit on one line: wrapped over two it
-  // doubles the row height and a table of suppressions (the goalkeeper's)
-  // reads as a mess rather than as a considered result.
+  // Both "insufficient sample" and "82nd percentile of 60" have to fit on
+  // one line: wrapped, they double the row height, and a table full of
+  // them (the goalkeeper's) reads as a mess rather than a considered
+  // result.
   let columns = if with-benchmark {
-    (1fr, 8.6em, 6em, 3.6em, 15em)
-  } else { (1fr, 8.6em, 3.6em, 15em) }
+    (1fr, 8.6em, 10.2em, 3.6em, 13.5em)
+  } else {
+    // No Comparison column here, so the spare width goes to Value: a
+    // bootstrap metric prints "0.167 per 90 (0.0304 to 0.298)" and the
+    // interval is part of the value, not an optional extra to wrap away.
+    (1fr, 15.6em, 3.6em, 12em)
+  }
   let alignment = if with-benchmark {
     (left, right, right, right, left)
   } else { (left, right, right, left) }

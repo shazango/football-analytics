@@ -12,22 +12,31 @@ from pathlib import Path
 import pytest
 
 from engine.render.claims import (
-    ORDINAL_BELOW_N,
     VerdictBands,
     _claimable,
     build_claims,
     load_bands,
+)
+from engine.render.format import (
+    ORDINAL_BELOW_N,
+    comparison_short,
+    format_value,
+    ordinal,
 )
 
 BANDS = load_bands()
 
 
 def _entry(**overrides) -> dict:
+    """A benchmarked foundation-metric entry as build_report produces it,
+    display_value included — the claim layer prints the IR's string rather
+    than formatting its own copy."""
     base = {
         "id": "line_break_value",
         "title": "Line-break value",
         "value": 74.8,
         "adjustment": "per_90",
+        "unit": None,
         "sample_size": 3018,
         "min_sample": 450,
         "suppressed": False,
@@ -39,7 +48,13 @@ def _entry(**overrides) -> dict:
         "benchmark_mad": 10.0,
         "benchmark_rank": 1,
     }
-    return {**base, **overrides}
+    entry = {**base, **overrides}
+    entry.setdefault(
+        "display_value",
+        format_value(entry["value"], entry["unit"], entry["adjustment"]),
+    )
+    entry.setdefault("benchmark_comparison", comparison_short(entry))
+    return entry
 
 
 # --- bands -----------------------------------------------------------
@@ -152,13 +167,14 @@ def test_ordinal_names_the_ends_and_numbers_the_middle():
 
 
 def test_small_values_are_not_rounded_to_zero():
-    # "0.0 per 90" reads as "he generated none". Xhaka's xG is 0.047.
+    # "0.0 per 90" reads as "he generated none". This is Xhaka's real xG.
     claim = build_claims(
-        [_entry(id="xg", title="Expected goals", value=0.047, benchmark_median=0.2,
+        [_entry(id="xg", title="Expected goals", value=0.0468, benchmark_median=0.224,
                 benchmark_mad=0.05, benchmark_percentile=0.0, benchmark_rank=7)],
         "MF", BANDS,
     )["weaknesses"][0]
-    assert "0.047 per 90" in claim["text"]
+    assert "0.0468 per 90" in claim["text"]
+    assert "against a positional median of 0.224 per 90" in claim["text"]
 
 
 # --- selection -------------------------------------------------------
@@ -341,3 +357,71 @@ def test_all_three_renderers_carry_identical_claims(tmp_path):
     pdf_out = tmp_path / "r.pdf"
     render_pdf(report, pdf_out)
     assert pdf_out.read_bytes()[:5] == b"%PDF-"
+
+
+# --- one formatter, so presentation cannot drift ---------------------
+
+
+@pytest.mark.parametrize(
+    "n, expected",
+    [(1, "1st"), (2, "2nd"), (3, "3rd"), (4, "4th"), (11, "11th"), (12, "12th"),
+     (13, "13th"), (20, "20th"), (21, "21st"), (22, "22nd"), (82, "82nd"),
+     (91, "91st"), (95, "95th"), (100, "100th"), (111, "111th"), (112, "112th")],
+)
+def test_ordinal_suffixes(n, expected):
+    # The PDF table hardcoded "th" and rendered "91th of 22".
+    assert ordinal(n) == expected
+
+
+@pytest.mark.parametrize("n", range(1, 40))
+def test_an_ordinal_can_never_exceed_its_comparison_set(n):
+    """"82th of 60" was on the shipped report: a percentile formatted with
+    the ordinal template. An ordinal names a place in the set, so it can
+    never be larger than the set."""
+    for rank in (1, max(1, n // 2), n):
+        entry = _entry(benchmark_n=n, benchmark_rank=rank,
+                       benchmark_percentile=rank / n)
+        short = comparison_short(entry)
+        if "percentile" in short:
+            # Percentile form: the first number is out of 100, not out of n,
+            # and must say so rather than reading as a rank.
+            assert n >= ORDINAL_BELOW_N
+            assert short.endswith(f"of {n}")
+        else:
+            assert n < ORDINAL_BELOW_N
+            stated = int(short.split()[0].rstrip("stndrh"))
+            assert stated <= n, f"{short} claims a place beyond a set of {n}"
+
+
+def test_summary_and_table_state_the_same_comparison(tmp_path):
+    # The defect this guards: the claim said "91st percentile of 22
+    # goalkeepers" while the table beside it said "91th of 22".
+    entry = _entry(benchmark_n=22, benchmark_rank=2, benchmark_percentile=0.91)
+    claim = build_claims([entry], "GK", BANDS)["strengths"][0]
+    assert claim["comparison"] == comparison_short(entry) == "91st percentile of 22"
+    assert "91st percentile of 22 goalkeepers" in claim["text"]
+    assert entry["benchmark_comparison"] == claim["comparison"]
+
+
+def test_percentage_metrics_carry_their_unit_in_both_places():
+    entry = _entry(id="pass_completion_defensive_third", title="Pass completion, defensive third",
+                   value=80.0, unit="percent", adjustment=None,
+                   benchmark_median=70.6, benchmark_mad=4.0, benchmark_n=22,
+                   benchmark_rank=2, benchmark_percentile=0.91)
+    claim = build_claims([entry], "GK", BANDS)["strengths"][0]
+    assert entry["display_value"] == "80.0%"           # the table prints this
+    assert "80.0%" in claim["text"]                    # and so does the summary
+    assert "positional median of 70.6%" in claim["text"]
+
+
+def test_a_bootstrap_metric_cannot_be_formatted_without_its_interval():
+    # Brief §6: never a bare point estimate for these. The interval is part
+    # of the one string every renderer prints, so no renderer can drop it.
+    with_ci = format_value(0.167, None, "per_90", 0.0304, 0.298)
+    assert with_ci == "0.167 per 90 (0.0304 to 0.298)"
+    assert format_value(0.167, None, "per_90") == "0.167 per 90"
+
+
+def test_unknown_unit_is_rejected():
+    with pytest.raises(ValueError, match="furlongs"):
+        format_value(1.0, "furlongs")

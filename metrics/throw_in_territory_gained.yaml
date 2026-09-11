@@ -7,4 +7,5 @@ requires:
   - event.location
   - event.end_location
 min_sample: 20
+unit: metres
 methodology: docs/metrics/throw_in_profile.md
