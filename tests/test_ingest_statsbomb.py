@@ -10,7 +10,11 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from engine.ingest.statsbomb import _insert_persons, ingest_competition
+from engine.ingest.statsbomb import (
+    _position_minutes,
+    _set_primary_positions,
+    ingest_competition,
+)
 from engine.metrics.foundation import qualifier_contains
 from engine.model.schema import ensure_schema
 
@@ -179,17 +183,68 @@ def test_ingest_is_idempotent(con):
     assert before == after
 
 
-def test_later_match_fills_in_missing_position():
-    # Regression: a player who's an unused sub in one match has an empty
-    # `positions` list there, giving primary_position=None for that match's
-    # row. INSERT OR IGNORE would let that first-seen None win forever even
-    # if a later match shows their real position — 5 Leverkusen regulars
-    # with 1000+ minutes ended up position-less this way (see step 7).
+def test_primary_position_is_where_most_minutes_were_played(con):
+    # Robin Gosens moves three times in this fixture: 45:00 at left wing
+    # back, then two spells at left centre forward (2:30 + 13:21) and a
+    # closing spell at centre attacking midfield. Taking the first listed
+    # position happens to agree here; taking the *last* or the most
+    # frequent would not. Only the minutes give left wing back.
+    position = con.execute(
+        "select primary_position from person where id = 6985"
+    ).fetchone()[0]
+    assert position == "Left Wing Back"
+
+    # Lucas Tousart: Right Center Midfield 00:00-65:26, then Center
+    # Defensive Midfield to the whistle. The longer spell wins.
+    position = con.execute(
+        "select primary_position from person where id = 3117"
+    ).fetchone()[0]
+    assert position == "Right Center Midfield"
+
+
+def test_unused_sub_keeps_a_null_position(con):
+    # A player named in the squad who never took the pitch has an empty
+    # `positions` list, contributes no minutes, and must not be guessed at.
+    position = con.execute(
+        "select primary_position from person where id = 8239"
+    ).fetchone()[0]
+    assert position is None
+
+
+def test_position_minutes_sums_split_spells():
+    lineup = [
+        {
+            "lineup": [
+                {
+                    "player_id": 1,
+                    "player_name": "Split Spell",
+                    "positions": [
+                        {"position": "Left Wing Back", "from": "00:00", "to": "45:00"},
+                        {"position": "Center Forward", "from": "45:00", "to": "60:00"},
+                        {"position": "Center Forward", "from": "70:00", "to": None},
+                    ],
+                }
+            ]
+        }
+    ]
+    assert _position_minutes(lineup, total_minutes=95.0) == [
+        (1, "Left Wing Back", 45.0),
+        (1, "Center Forward", 15.0),
+        (1, "Center Forward", 25.0),
+    ]
+
+    # 45 at wing back vs 15 + 25 = 40 up front: the two forward spells only
+    # beat it once they're summed, which is the point of accumulating
+    # across stints (and across matches) rather than taking the longest one.
     con = duckdb.connect(":memory:")
     ensure_schema(con)
-    _insert_persons(con, [(999, "Unused Sub Then Starter", None, None, None)])
-    _insert_persons(con, [(999, "Unused Sub Then Starter", None, None, "Center Back")])
-    position = con.execute(
-        "select primary_position from person where id = 999"
-    ).fetchone()[0]
-    assert position == "Center Back"
+    con.execute("INSERT INTO person VALUES (1, 'Split Spell', NULL, NULL, NULL)")
+    _set_primary_positions(con, {1: {"Left Wing Back": 45.0, "Center Forward": 40.0}})
+    assert con.execute(
+        "select primary_position from person where id = 1"
+    ).fetchone()[0] == "Left Wing Back"
+
+    _set_primary_positions(con, {1: {"Left Wing Back": 45.0, "Center Forward": 50.0}})
+    assert con.execute(
+        "select primary_position from person where id = 1"
+    ).fetchone()[0] == "Center Forward"

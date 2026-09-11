@@ -79,28 +79,63 @@ def _appearance_rows(
 
 
 def _person_rows(lineup_json: list[dict]) -> list[tuple]:
-    rows = []
-    for team in lineup_json:
-        for player in team["lineup"]:
-            primary_position = next(
-                (p["position"] for p in player["positions"]), None
-            )
-            rows.append(
-                (player["player_id"], player["player_name"], None, None, primary_position)
-            )
-    return rows
+    # No position here: it isn't a per-match fact. `primary_position` is
+    # set once at the end of the ingest, from minutes summed over the whole
+    # competition — see _set_primary_positions.
+    return [
+        (player["player_id"], player["player_name"], None, None, None)
+        for team in lineup_json
+        for player in team["lineup"]
+    ]
 
 
-def _insert_persons(con, rows: list[tuple]) -> None:
-    # A player's lineup entry has an empty `positions` list in any match
-    # they didn't feature in (unused sub); INSERT OR IGNORE would let
-    # whichever match got processed first — even a position-less one —
-    # permanently blank out real position data from a later match. Upsert
-    # so a later match can fill it in.
+def _position_minutes(
+    lineup_json: list[dict], total_minutes: float
+) -> list[tuple[int, str, float]]:
+    """(player_id, position, minutes) for every positional stint in one
+    match. A player who starts at right back and finishes in midfield
+    contributes one row per shift.
+
+    `from`/`to` are a continuous match clock, not a per-period one — a
+    second-half tactical shift reads "65:26", not "20:26" — the same
+    assumption _appearance_rows makes. Verified across all 805 stints in
+    the Bundesliga 2023/24 slice: no stint ends before it starts.
+    """
+    return [
+        (
+            player["player_id"],
+            stint["position"],
+            (_clock_to_minutes(stint["to"]) if stint["to"] else total_minutes)
+            - _clock_to_minutes(stint["from"]),
+        )
+        for team in lineup_json
+        for player in team["lineup"]
+        for stint in player["positions"]
+    ]
+
+
+def _set_primary_positions(con, minutes_by_position: dict[int, dict[str, float]]) -> None:
+    """primary_position = wherever the player spent the most minutes this
+    competition.
+
+    Was "the first position listed in the first match ingested", which for
+    a two-appearance opponent meant wherever he happened to stand for the
+    opening ten minutes of one game — Mario Götze came out of it a
+    defensive midfielder. Anyone bucketing by position (benchmark.py) is
+    downstream of this, so it has to be a fact about the season, not about
+    ingest order.
+
+    Players with no stint at all (named in a squad, never took the pitch)
+    are simply absent here and keep a NULL position.
+    """
     con.executemany(
-        "INSERT INTO person VALUES (?, ?, ?, ?, ?) ON CONFLICT (id) DO UPDATE "
-        "SET primary_position = COALESCE(person.primary_position, excluded.primary_position)",
-        rows,
+        "UPDATE person SET primary_position = ? WHERE id = ?",
+        [
+            # Ties break on the position name so a re-ingest is reproducible
+            # rather than depending on which match was processed first.
+            (max(by_position.items(), key=lambda kv: (kv[1], kv[0]))[0], person_id)
+            for person_id, by_position in minutes_by_position.items()
+        ],
     )
 
 
@@ -266,6 +301,8 @@ def ingest_competition(
     )
     matches_by_id = {m["match_id"]: m for m in matches}
 
+    minutes_by_position: dict[int, dict[str, float]] = {}
+
     for mid in match_ids:
         match = matches_by_id[mid]
         for side in ("home_team", "away_team"):
@@ -304,7 +341,15 @@ def ingest_competition(
         lineup_json = json.loads(lineup_path.read_text())
         total_minutes = ds.metadata.periods[-1].end_timestamp.total_seconds() / 60
 
-        _insert_persons(con, _person_rows(lineup_json))
+        con.executemany(
+            "INSERT OR IGNORE INTO person VALUES (?, ?, ?, ?, ?)",
+            _person_rows(lineup_json),
+        )
+        for person_id, position, minutes in _position_minutes(lineup_json, total_minutes):
+            minutes_by_position.setdefault(person_id, {})
+            minutes_by_position[person_id][position] = (
+                minutes_by_position[person_id].get(position, 0.0) + minutes
+            )
         con.executemany(
             "INSERT OR IGNORE INTO appearance VALUES (?, ?, ?, ?, ?, ?)",
             _appearance_rows(lineup_json, mid, total_minutes),
@@ -314,6 +359,8 @@ def ingest_competition(
             "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             _event_rows(ds, mid),
         )
+
+    _set_primary_positions(con, minutes_by_position)
 
     foundation.assert_qualifier_values_seen(con)
 
