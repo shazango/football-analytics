@@ -75,16 +75,21 @@ def _line_break_value_impl(con, definition, person_id, competition_id, season,
         )
 
     passes = _passes_with_value(con, person_id, competition_id)
-    n = len(passes)
     total_value = sum(value for value, _ in passes)
+    total_minutes = sum(minutes for _, minutes, _ in _appearances(con, person_id, competition_id))
 
     if adjustment == "raw":
         value = total_value
     else:
-        total_minutes = sum(minutes for _, minutes, _ in _appearances(con, person_id, competition_id))
         value = (total_value / (total_minutes / 90)) if total_minutes else None
 
-    return MetricResult(value=value, sample_size=n)
+    # Minutes, not completed passes — the same exposure measure every
+    # other per-90 metric reports (foundation._per_90_stat). Gating a
+    # per-90 rate on pass count admits a single high-possession match:
+    # Eric Dier cleared a 20-pass threshold with 91 completed passes in
+    # one 98-minute appearance and benchmarked as a season-long outlier
+    # at a per-pass value (0.93) indistinguishable from Xhaka's (1.01).
+    return MetricResult(value=value, sample_size=int(round(total_minutes)))
 
 
 registry.register("line_break_value")(_line_break_value_impl)

@@ -3,9 +3,30 @@
 Weights a completed pass by how many opposition outfield players it
 removes from between the ball and the goal — "packing," in the term
 Impect's own open data uses — weighted by how close each removed player
-was to goal (brief §7.5). Reported per-90; `min_sample: 20` completed
-passes with a freeze frame available (76.9% of completed passes in this
-warehouse have one).
+was to goal (brief §7.5). Reported per-90; `min_sample: 450` minutes.
+
+## Why the sample gate is in minutes (v2)
+
+v1 gated on 20 completed passes with a freeze frame. That is the wrong
+denominator for a per-90 rate: pass volume is a property of the team's
+possession share, not of the player's exposure, so one high-possession
+appearance clears it. Eric Dier completed 91 passes in a single 98-minute
+match and benchmarked as a season-long outlier (78.4 per 90, top of 57
+centre-backs) at a per-pass value of 0.93 — statistically indistinguishable
+from Xhaka's 0.99 over 2,481 passes. The rate was real; the sample behind
+it was one game.
+
+v2 gates on 450 minutes, the same exposure measure every other per-90
+metric uses (`foundation._per_90_stat`). `sample_size` is now minutes
+played, not passes evaluated.
+
+The cost is comparison-set breadth. In a single-club slice no opposition
+player reaches 450 minutes — they face Leverkusen twice, ~200 minutes at
+most — so the benchmark population drops from 61 players across 17 clubs
+to the 18 Leverkusen players who clear the threshold. That is the same
+restriction every other per-90 metric already carries; v1 was the
+exception, and it bought its breadth by admitting one-match samples.
+Multi-club data removes the trade-off.
 
 ## Detection
 

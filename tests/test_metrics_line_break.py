@@ -14,7 +14,7 @@ from engine.metrics.line_break import _bypassed_value_and_count
 from engine.model.schema import ensure_schema
 
 DEFN = MetricDefinition(
-    id="line_break_value", version=1, title="t", applies_to="all", min_sample=1,
+    id="line_break_value", version=2, title="t", applies_to="all", min_sample=450,
     methodology="x", adjustments=["per_90"],
 )
 
@@ -114,10 +114,22 @@ def test_line_break_value_raw_and_per90(con):
     impl = registry.get_implementation("line_break_value")
     raw = impl(con, DEFN, person_id=100, competition_id="C1", season="S1", adjustment="raw")
     assert raw.value == pytest.approx(0.6)
-    assert raw.sample_size == 2
 
     per90 = impl(con, DEFN, person_id=100, competition_id="C1", season="S1", adjustment="per_90")
     assert per90.value == pytest.approx(0.6)  # 90 minutes = 1.0x
+
+
+def test_sample_size_is_minutes_not_passes(con):
+    # v2: the gate is exposure, not pass volume. This player has 90
+    # minutes and two evaluated passes; reporting 2 would let a single
+    # high-possession appearance clear a pass-count threshold and
+    # benchmark as a season-long rate (see docs/metrics/line_break_value.md).
+    impl = registry.get_implementation("line_break_value")
+    for adjustment in ("raw", "per_90"):
+        result = impl(con, DEFN, person_id=100, competition_id="C1", season="S1",
+                      adjustment=adjustment)
+        assert result.sample_size == 90, adjustment
+        assert result.sample_size < DEFN.min_sample  # and so is suppressed
 
 
 def test_unsupported_adjustment_raises(con):
