@@ -331,12 +331,13 @@ def test_all_three_renderers_carry_identical_claims(tmp_path):
     for text in expected:
         assert text in strings
 
-    template = (
-        Path(__file__).parent.parent
-        / "src" / "engine" / "render" / "templates" / "report.html"
-    )
-    import jinja2
-    env = jinja2.Environment(loader=jinja2.FileSystemLoader(str(template.parent)))
-    html = env.get_template("report.html").render(report=report)
-    for text in expected:
-        assert text in html
+    # Read back out of the compiled document rather than asserted against
+    # the template source: a template that compiles is not evidence that
+    # it rendered the right sentences, which is how the old PDF renderer
+    # went unrun for so long.
+    from engine.render.pdf_renderer import claims_in_pdf, render_pdf
+
+    assert claims_in_pdf(report) == expected
+    pdf_out = tmp_path / "r.pdf"
+    render_pdf(report, pdf_out)
+    assert pdf_out.read_bytes()[:5] == b"%PDF-"

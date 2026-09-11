@@ -1,15 +1,15 @@
-"""Step 13: report IR + JSON/XLSX renderers. Uses the real committed
+"""Step 13: report IR + JSON/XLSX/PDF renderers. Uses the real committed
 StatsBomb fixture (one full match) since the report touches nearly every
 metric module — a synthetic warehouse would need to fake all of them.
-PDF isn't tested here: WeasyPrint is unavailable on this dev machine
-(see engine/render/pdf_renderer.py); the Jinja2 template itself is
-exercised directly (no WeasyPrint needed) to catch template bugs.
+
+The PDF is compiled for real here. It used to be exempt: WeasyPrint needed
+system libraries this machine has no way to install, so the renderer was
+checked through its template instead and had never once run.
 """
 
 from pathlib import Path
 
 import duckdb
-import jinja2
 import pytest
 
 from engine.ingest.statsbomb import ingest_competition
@@ -18,10 +18,9 @@ from engine.metrics.benchmark import MIN_BENCHMARK_N
 from engine.metrics.psxg import PSxGModel
 from engine.model.schema import ensure_schema
 from engine.render.json_renderer import render_json
+from engine.render.pdf_renderer import render_pdf
 from engine.render.report import build_report
 from engine.render.xlsx_renderer import render_xlsx
-
-TEMPLATE_DIR = Path(__file__).parent.parent / "src" / "engine" / "render" / "templates"
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "statsbomb" / "data"
 
@@ -127,11 +126,24 @@ def test_xlsx_renderer_writes_file(con, keeper_id, tmp_path):
     assert out.stat().st_size > 0
 
 
-def test_pdf_template_renders_without_weasyprint(con, keeper_id):
-    # Exercises the Jinja2 template directly -- catches template bugs
-    # (undefined vars, bad loops) without needing WeasyPrint installed.
+def test_pdf_renderer_writes_a_real_pdf(con, keeper_id, tmp_path):
+    # The renderer this replaced needed Pango/cairo/libgobject as system
+    # libraries, never ran on this machine, and was checked only through
+    # its template. Typst ships self-contained, so the PDF itself is now
+    # the thing under test.
     report = build_report(con, keeper_id, "9-281", "2023/2024")
-    env = jinja2.Environment(loader=jinja2.FileSystemLoader(TEMPLATE_DIR), autoescape=True)
-    html = env.get_template("report.html").render(report=report)
-    assert report["name"] in html
-    assert "Foundation metrics" in html
+    out = tmp_path / "report.pdf"
+    render_pdf(report, out)
+    assert out.read_bytes()[:5] == b"%PDF-"
+    assert out.stat().st_size > 10_000
+
+
+def test_pdf_renders_the_goalkeeper_whose_report_is_mostly_suppressed(con, keeper_id, tmp_path):
+    # The keeper bucket holds one qualifying player, so nearly every
+    # benchmark is suppressed. That path has to produce a document, not a
+    # crash or an empty page.
+    report = build_report(con, keeper_id, "9-281", "2023/2024")
+    assert report["claims"]["benchmark_suppressed_count"] > 0
+    out = tmp_path / "gk.pdf"
+    render_pdf(report, out)
+    assert out.stat().st_size > 10_000

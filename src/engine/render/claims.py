@@ -175,6 +175,14 @@ def _claim(entry: dict, bands: VerdictBands, noun: str) -> dict:
     value_text = _format_value(entry["value"], entry.get("adjustment"))
     median_text = _format_value(entry["benchmark_median"], entry.get("adjustment"))
     comparison = _comparison_phrase(entry, noun)
+    # Split at source rather than leaving a renderer to find the verdict
+    # inside `text` by slicing at a character offset: the PDF sets the
+    # headline bold and the evidence regular, and a title with a non-ASCII
+    # character would silently cut in the wrong place.
+    headline = f"{entry['title']}: {verdict}."
+    evidence = (
+        f"{value_text} — {comparison}, against a positional median of {median_text}."
+    )
     return {
         "metric_id": entry["id"],
         "title": entry["title"],
@@ -189,8 +197,9 @@ def _claim(entry: dict, bands: VerdictBands, noun: str) -> dict:
         "distance_from_median": _distance_from_median(entry),
         "band_version": bands.version,
         "methodology": entry["methodology"],
-        "text": f"{entry['title']}: {verdict}. {value_text} — {comparison}, "
-                f"against a positional median of {median_text}.",
+        "headline": headline,
+        "evidence": evidence,
+        "text": f"{headline} {evidence}",
     }
 
 
@@ -215,6 +224,10 @@ def build_claims(
         # Carried so the JSON says which floor filtered it, not only which
         # bands judged it.
         "notable_distance_mads": bands.notable_distance_mads,
+        # Read by the PDF template, which picks ordinal vs percentile the
+        # same way a claim does — a renderer reading the threshold beats a
+        # renderer holding a second copy of it.
+        "ordinal_below_n": ORDINAL_BELOW_N,
         "strengths": top("strength"),
         "weaknesses": top("weakness"),
         # Why a report that should have claims has none: the reader needs
@@ -225,6 +238,11 @@ def build_claims(
         # positional median to be worth asserting.
         "not_notable": sum(
             1 for c in claims if c["direction"] != "neutral" and not _notable(c, bands)
+        ),
+        # For the caption under the PDF's foundation table. Counted here so
+        # no renderer has to derive it (brief §9).
+        "benchmark_suppressed_count": sum(
+            1 for e in foundation_metrics if e.get("benchmark_suppressed")
         ),
     }
 

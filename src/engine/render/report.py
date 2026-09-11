@@ -203,16 +203,12 @@ def _main() -> None:
     out_dir.mkdir(exist_ok=True)
     stem = out_dir / str(args.player)
 
+    from engine.render.pdf_renderer import render_pdf
+
     render_json(report, stem.with_suffix(".json"))
     render_xlsx(report, stem.with_suffix(".xlsx"))
-    print(f"Wrote {stem}.json, {stem}.xlsx")
-
-    try:
-        from engine.render.pdf_renderer import render_pdf
-        render_pdf(report, stem.with_suffix(".pdf"))
-        print(f"Wrote {stem}.pdf")
-    except OSError as e:
-        print(f"Skipped PDF (WeasyPrint unavailable on this machine): {e}")
+    render_pdf(report, stem.with_suffix(".pdf"))
+    print(f"Wrote {stem}.json, {stem}.xlsx, {stem}.pdf")
 
 
 if __name__ == "__main__":

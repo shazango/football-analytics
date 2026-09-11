@@ -21,7 +21,7 @@ def test_pinned_stack_importable():
         "duckdb",
         "statsmodels",
         "sklearn",
-        "jinja2",
+        "typst",
         "xlsxwriter",
         "yaml",
     ):
