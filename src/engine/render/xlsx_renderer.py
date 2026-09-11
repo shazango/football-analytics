@@ -59,6 +59,40 @@ def render_xlsx(report: dict, path: Path) -> None:
         identity.write(r, 0, label, bold)
         identity.write(r, 1, value)
 
+    claims = report["claims"]
+    claims_sheet = workbook.add_worksheet("Claims")
+    claim_headers = [
+        "Direction", "Metric", "Verdict", "Value", "Positional median",
+        "Comparison", "Benchmark n", "Basis", "Band version", "Claim", "Methodology",
+    ]
+    for col, header in enumerate(claim_headers):
+        claims_sheet.write(0, col, header, bold)
+    r = 1
+    for direction in ("strengths", "weaknesses"):
+        for claim in claims[direction]:
+            claims_sheet.write_row(r, 0, [
+                direction[:-1],
+                claim["title"],
+                claim["verdict"],
+                claim["value"],
+                claim["benchmark_median"],
+                f"{claim['benchmark_rank']} of {claim['benchmark_n']}",
+                claim["benchmark_n"],
+                claim["comparison_basis"],
+                claim["band_version"],
+                claim["text"],
+                claim["methodology"],
+            ])
+            r += 1
+    if r == 1:
+        claims_sheet.write(
+            1, 0,
+            f"No claim in this report is supported by the data — "
+            f"{claims['suppressed']} of {claims['suppressed'] + claims['eligible']} "
+            "foundation metrics fall below their sample threshold or have too "
+            "small a comparison set to rank against.",
+        )
+
     foundation_sheet = workbook.add_worksheet("Foundation Metrics")
     _write_metric_table(foundation_sheet, report["foundation_metrics"], bold, has_benchmark=True)
 
@@ -87,8 +121,10 @@ def render_xlsx(report: dict, path: Path) -> None:
     methodology_sheet = workbook.add_worksheet("Methodology")
     methodology_sheet.write(0, 0, "Metric", bold)
     methodology_sheet.write(0, 1, "Methodology page", bold)
+    methodology_sheet.write(1, 0, f"Verdict bands (v{claims['band_version']})")
+    methodology_sheet.write(1, 1, claims["methodology"])
     seen = set()
-    r = 1
+    r = 2
     for entry in report["foundation_metrics"] + (report["position_panel"] or []):
         if entry["id"] in seen:
             continue

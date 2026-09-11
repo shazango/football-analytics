@@ -13,6 +13,9 @@
   .suppressed { color: #999; font-style: italic; }
   .section-title { font-size: 12pt; margin-top: 14px; margin-bottom: 4px; border-bottom: 2px solid #333; }
   .footer { margin-top: 16px; font-size: 7pt; color: #777; }
+  .claim { margin: 4px 0; }
+  .claim-note { margin-top: 8px; font-size: 7pt; color: #777; }
+  .methodology { font-size: 7pt; color: #777; }
 </style>
 </head>
 <body>
@@ -24,9 +27,31 @@
   {{ report.competition.name }} {{ report.competition.season }}
 </div>
 
+<div class="section-title">Summary</div>
+{% if report.claims.strengths or report.claims.weaknesses %}
+{% for c in report.claims.strengths + report.claims.weaknesses %}
+<p class="claim">{{ c.text }}</p>
+{% endfor %}
+{% else %}
+<p class="suppressed">
+  No claim in this report is supported by the data.
+  {{ report.claims.suppressed }} of {{ report.claims.suppressed + report.claims.eligible }}
+  foundation metrics fall below their sample threshold or have too small a
+  comparison set to rank against; the rest sit in the typical band.
+  The tables below show what was measured.
+</p>
+{% endif %}
+<p class="claim-note">
+  Verdicts from percentile bands v{{ report.claims.band_version }}
+  ({{ report.claims.methodology }}).
+  {% if report.claims.suppressed %}{{ report.claims.suppressed }} of
+  {{ report.claims.suppressed + report.claims.eligible }} foundation metrics
+  could not be judged — sample or comparison set too small.{% endif %}
+</p>
+
 <div class="section-title">Foundation metrics</div>
 <table>
-  <tr><th>Metric</th><th>Value</th><th>Percentile</th><th>Sample</th></tr>
+  <tr><th>Metric</th><th>Value</th><th>Percentile</th><th>Sample</th><th>Methodology</th></tr>
   {% for m in report.foundation_metrics %}
   <tr>
     <td>{{ m.title }}</td>
@@ -43,6 +68,7 @@
     <td>n/a</td>
     {% endif %}
     <td>{{ m.sample_size }}</td>
+    <td class="methodology">{{ m.methodology }}</td>
   </tr>
   {% endfor %}
 </table>
@@ -50,7 +76,7 @@
 {% if report.position_panel %}
 <div class="section-title">{{ report.position_bucket }} panel</div>
 <table>
-  <tr><th>Metric</th><th>Value</th><th>Sample</th></tr>
+  <tr><th>Metric</th><th>Value</th><th>Sample</th><th>Methodology</th></tr>
   {% for m in report.position_panel %}
   <tr>
     <td>{{ m.title }}</td>
@@ -60,6 +86,7 @@
     <td>{{ "%.2f"|format(m.value) }}{% if m.ci_low is not none %} ({{ "%.2f"|format(m.ci_low) }} to {{ "%.2f"|format(m.ci_high) }}){% endif %}</td>
     {% endif %}
     <td>{{ m.sample_size }}</td>
+    <td class="methodology">{{ m.methodology }}</td>
   </tr>
   {% endfor %}
 </table>
@@ -68,7 +95,7 @@
 {% if report.throw_in_profile %}
 <div class="section-title">Throw-in profile</div>
 <table>
-  <tr><th>Metric</th><th>Value</th><th>Sample</th></tr>
+  <tr><th>Metric</th><th>Value</th><th>Sample</th><th>Methodology</th></tr>
   {% for m in report.throw_in_profile %}
   <tr>
     <td>{{ m.title }}</td>
@@ -78,6 +105,7 @@
     <td>{{ "%.2f"|format(m.value) }}</td>
     {% endif %}
     <td>{{ m.sample_size }}</td>
+    <td class="methodology">{{ m.methodology }}</td>
   </tr>
   {% endfor %}
 </table>
@@ -102,7 +130,8 @@
 
 <div class="footer">
   {{ report.attribution }}<br>
-  Generated {{ report.generated_at }}. Methodology pages: see docs/metrics/ for each metric above.
+  Generated {{ report.generated_at }}. Each metric's methodology page is named in its own row above;
+  verdict bands: {{ report.claims.methodology }} (v{{ report.claims.band_version }}).
 </div>
 
 </body>

@@ -34,6 +34,7 @@ from engine.metrics.benchmark import (
 )
 from engine.metrics.definitions import load_all
 from engine.metrics.runtime import compute_and_store
+from engine.render.claims import benchmark_stats, build_claims, load_bands
 
 ATTRIBUTION = (
     "Data: StatsBomb Open Data "
@@ -69,6 +70,7 @@ def _metric_entry(con, defn, person_id, competition_id, season, adjustment=None)
         "ci_low": result.ci_low,
         "ci_high": result.ci_high,
         "confidence": defn.confidence,
+        "adjustment": adjustment,
         "methodology": defn.methodology,
         "definition_version": defn.version,
         "computed_at": result.computed_at,
@@ -88,6 +90,9 @@ def _with_benchmark(con, entry: dict, defn, competition_id, season, bucket, adju
         if entry["value"] is not None and dist["values"]
         else None
     )
+    # Median/MAD/rank: what a claim needs to say *what* the player is being
+    # compared against, not only where they finished in it.
+    entry.update(benchmark_stats(dist["values"], entry["value"]))
     return entry
 
 
@@ -167,6 +172,7 @@ def build_report(con, person_id: int, competition_id: str, season: str) -> dict:
         "competition": {"id": competition_id, "name": comp_name, "season": comp_season},
         "minutes": total_minutes,
         "foundation_metrics": foundation_metrics,
+        "claims": build_claims(foundation_metrics, bucket, load_bands()),
         "position_panel": position_panel,
         "throw_in_profile": throw_in_profile,
         "game_state_response": game_state_response,

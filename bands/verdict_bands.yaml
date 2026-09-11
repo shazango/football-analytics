@@ -1,0 +1,34 @@
+# Verdict bands: percentile -> word. Versioned and loaded as data, like a
+# metric definition (metrics/*.yaml), so a report records which ruleset
+# wrote its claims and a change to the wording is a reviewable diff rather
+# than an edit buried in a renderer.
+#
+# Lives outside metrics/ on purpose: definitions.load_all() globs
+# metrics/*.yaml and would try to read this as a MetricDefinition.
+id: verdict_bands
+version: 1
+methodology: docs/verdict_bands.md
+
+# Ordered high to low. The first band whose min_percentile the value meets
+# or exceeds wins, so boundaries are inclusive at the bottom: exactly 90
+# reads elite, 89 reads strong.
+#
+# direction decides which list a claim can be selected into. "neutral"
+# metrics are never surfaced as prose — a report that asserts a player is
+# average at something is padding.
+bands:
+  - verdict: elite
+    min_percentile: 90
+    direction: strength
+  - verdict: strong
+    min_percentile: 75
+    direction: strength
+  - verdict: typical
+    min_percentile: 40
+    direction: neutral
+  - verdict: below par
+    min_percentile: 15
+    direction: weakness
+  - verdict: weak
+    min_percentile: 0
+    direction: weakness
