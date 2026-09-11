@@ -33,6 +33,18 @@ ORDINAL_BELOW_N = 20
 
 MAX_CLAIMS_PER_DIRECTION = 3
 
+# How far from the positional median a value must sit before it is worth a
+# sentence, in median absolute deviations.
+#
+# Landing in a non-typical band is not enough on a small comparison set. At
+# n=7 a percentile is really a rank, so 6th of 7 lands at the 14th
+# percentile and reads "below par" however close the numbers are: Xhaka's
+# 1.22 key passes per 90 against a median of 1.26 — one key pass every
+# thirty matches — was being asserted as a weakness. One MAD is the point
+# at which a value is distinguishable from typical rather than merely
+# ordered behind it.
+NOTABLE_DISTANCE_MADS = 1.0
+
 BUCKET_NOUN = {
     "GK": "goalkeepers",
     "DF": "defenders",
@@ -103,18 +115,35 @@ def _comparison_phrase(entry: dict, noun: str) -> str:
     return f"{_ordinal(rank)} of {n} {noun} in the comparison set"
 
 
-def _distance_from_median(entry: dict) -> float:
+def _distance_from_median(entry: dict) -> float | None:
     """How far from typical, in median absolute deviations.
 
     Not raw units: these metrics run from xG near 0.3 to pass completion
     near 90, so ranking on raw distance would surface pass completion
-    every time. Falls back to distance from the median percentile where a
-    distribution has no spread to measure against.
+    every time.
+
+    None means the distribution has no spread at all (MAD = 0, i.e. at
+    least half the comparison set share one value) and the player is not
+    on it — a difference that cannot be measured in MADs because the unit
+    is zero, but which is as unusual as this set gets. Treated as
+    maximally distant, and kept as null rather than infinity so the JSON
+    renderer emits valid JSON.
     """
     mad = entry.get("benchmark_mad")
+    deviation = abs(entry["value"] - entry["benchmark_median"])
     if mad:
-        return abs(entry["value"] - entry["benchmark_median"]) / mad
-    return abs(entry["benchmark_percentile"] - 0.5)
+        return deviation / mad
+    return None if deviation else 0.0
+
+
+def _sort_distance(claim: dict) -> float:
+    distance = claim["distance_from_median"]
+    return float("inf") if distance is None else distance
+
+
+def _notable(claim: dict) -> bool:
+    distance = claim["distance_from_median"]
+    return distance is None or distance >= NOTABLE_DISTANCE_MADS
 
 
 def _claimable(entry: dict) -> bool:
@@ -157,14 +186,15 @@ def build_claims(
     foundation_metrics: list[dict], position_bucket: str, bands: VerdictBands
 ) -> dict:
     """Up to three strengths and up to three weaknesses, furthest from the
-    positional median first. Fewer if fewer qualify — never padded, and a
+    positional median first, and only where that distance clears
+    NOTABLE_DISTANCE_MADS. Fewer if fewer qualify — never padded, and a
     player with nothing notable gets none."""
     noun = BUCKET_NOUN.get(position_bucket, "players")
     claims = [_claim(e, bands, noun) for e in foundation_metrics if _claimable(e)]
 
     def top(direction: str) -> list[dict]:
-        selected = [c for c in claims if c["direction"] == direction]
-        selected.sort(key=lambda c: c["distance_from_median"], reverse=True)
+        selected = [c for c in claims if c["direction"] == direction and _notable(c)]
+        selected.sort(key=_sort_distance, reverse=True)
         return selected[:MAX_CLAIMS_PER_DIRECTION]
 
     return {
@@ -174,9 +204,13 @@ def build_claims(
         "weaknesses": top("weakness"),
         # Why a report that should have claims has none: the reader needs
         # to see "the data didn't support it", not an empty section.
-        "considered": len(claims),
         "eligible": sum(1 for e in foundation_metrics if _claimable(e)),
         "suppressed": sum(1 for e in foundation_metrics if not _claimable(e)),
+        # Judged, in a strength/weakness band, but too close to the
+        # positional median to be worth asserting.
+        "not_notable": sum(
+            1 for c in claims if c["direction"] != "neutral" and not _notable(c)
+        ),
     }
 
 

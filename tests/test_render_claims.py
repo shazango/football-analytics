@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from engine.render.claims import (
+    NOTABLE_DISTANCE_MADS,
     ORDINAL_BELOW_N,
     VerdictBands,
     _claimable,
@@ -140,8 +141,8 @@ def test_ordinal_names_the_ends_and_numbers_the_middle():
 def test_small_values_are_not_rounded_to_zero():
     # "0.0 per 90" reads as "he generated none". Xhaka's xG is 0.047.
     claim = build_claims(
-        [_entry(id="xg", title="Expected goals", value=0.047,
-                benchmark_median=0.2, benchmark_percentile=0.0, benchmark_rank=7)],
+        [_entry(id="xg", title="Expected goals", value=0.047, benchmark_median=0.2,
+                benchmark_mad=0.05, benchmark_percentile=0.0, benchmark_rank=7)],
         "MF", BANDS,
     )["weaknesses"][0]
     assert "0.047 per 90" in claim["text"]
@@ -158,6 +159,55 @@ def test_at_most_three_each_way_furthest_from_median_first():
     ]
     claims = build_claims(strengths, "MF", BANDS)
     assert [c["title"] for c in claims["strengths"]] == ["S1", "S4", "S2"]
+
+
+def test_close_to_the_median_is_not_a_claim():
+    # The Xhaka key-passes case: 6th of 7 puts him in the "below par"
+    # band, but 1.22 against a median of 1.26 is one key pass every thirty
+    # matches. Rank noise is not a weakness.
+    near = _entry(id="key_passes", title="Key passes", value=1.22,
+                  benchmark_median=1.26, benchmark_mad=0.4,
+                  benchmark_percentile=0.14, benchmark_rank=6)
+    claims = build_claims([near], "MF", BANDS)
+    assert claims["weaknesses"] == []
+    assert claims["eligible"] == 1        # it was judged
+    assert claims["not_notable"] == 1     # and reported as not worth asserting
+
+
+def test_floor_boundary_is_inclusive():
+    def qualifies(deviation_in_mads):
+        entry = _entry(value=21.5 + deviation_in_mads, benchmark_median=21.5,
+                       benchmark_mad=1.0, benchmark_percentile=0.95)
+        return bool(build_claims([entry], "MF", BANDS)["strengths"])
+
+    assert qualifies(NOTABLE_DISTANCE_MADS)
+    assert not qualifies(NOTABLE_DISTANCE_MADS - 0.01)
+
+
+def test_no_spread_counts_as_maximally_distant():
+    # MAD = 0 means at least half the comparison set share one value, so
+    # the distance has no unit. A player off that value is as unusual as
+    # this set gets; a player on it is not unusual at all.
+    off = _entry(value=3.0, benchmark_median=0.0, benchmark_mad=0.0,
+                 benchmark_percentile=1.0)
+    claims = build_claims([off], "MF", BANDS)
+    assert len(claims["strengths"]) == 1
+    # Null, not infinity — the JSON renderer has to emit valid JSON.
+    assert claims["strengths"][0]["distance_from_median"] is None
+    assert json.dumps(claims)
+
+    on = _entry(value=0.0, benchmark_median=0.0, benchmark_mad=0.0,
+                benchmark_percentile=1.0)
+    assert build_claims([on], "MF", BANDS)["strengths"] == []
+
+
+def test_unmeasurable_spread_outranks_a_measured_distance():
+    off = _entry(id="a", title="A", value=3.0, benchmark_median=0.0,
+                 benchmark_mad=0.0, benchmark_percentile=1.0)
+    far = _entry(id="b", title="B", value=100.0, benchmark_median=0.0,
+                 benchmark_mad=1.0, benchmark_percentile=0.95)
+    claims = build_claims([far, off], "MF", BANDS)
+    assert [c["title"] for c in claims["strengths"]] == ["A", "B"]
 
 
 def test_never_padded_to_three():

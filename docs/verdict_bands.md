@@ -69,10 +69,31 @@ Distance is measured in **median absolute deviations**, not raw units:
 foundation metrics run from expected goals near 0.3 to pass completion
 near 90, so a raw distance would rank pass completion first every time.
 MAD is the same robust measure the archetype spike used, and it is scale
-free. Where a distribution has no spread at all (MAD = 0) the fallback is
-distance from the median percentile.
+free.
 
 Metrics in the *typical* band are never surfaced, in either direction.
+
+### The one-MAD floor
+
+Landing in a non-typical band is not enough. A claim must also sit at
+least **one MAD** from the positional median.
+
+Without the floor, rank noise becomes a verdict. On a comparison set of
+seven, a percentile is really an ordinal — 6th of 7 is the 14th
+percentile whatever the numbers say — so Xhaka's 1.22 key passes per 90
+against a median of 1.26 was being asserted as a weakness. That gap is
+about one key pass every thirty matches. One MAD is the point at which a
+value is distinguishable from typical rather than merely ordered behind
+it.
+
+Metrics judged but held back this way are counted in the report as
+`not_notable`, so a thin summary is legible rather than mysterious.
+
+Where a distribution has no spread at all (MAD = 0, meaning at least half
+the comparison set share one value), distance has no unit. A player off
+that value is treated as maximally distant and ranks first; a player on
+it is not notable. The claim records `distance_from_median: null` in that
+case rather than an infinity, so the JSON stays valid JSON.
 
 ## The direction of a metric is not modelled
 
