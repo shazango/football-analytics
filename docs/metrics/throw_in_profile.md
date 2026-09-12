@@ -47,7 +47,8 @@ warehouse before picking them:
   same possession chain (13.3% of all throws — "Long" throws contested in
   the air), the share the throwing team wins. `min_sample: 5`, reflecting
   the much smaller contested-throw population.
-- **throw_in_retention_allowed** (defensive mirror): retention rate of the
+- **throw_in_retention_allowed** (defensive mirror, **team-level — not on
+  player reports**): retention rate of the
   *opponent's* throw-ins, across every fixture this player appeared in —
   same "opposing shots" pattern as psxg_ga's defensive context (step 8),
   applied to throws instead. Substitution timing ignored, same
@@ -57,3 +58,32 @@ warehouse before picking them:
   opponent — reusing `line_break_value`'s bypass detection directly (step
   11; deferred until that metric existed). Grimaldo (Leverkusen's primary
   thrower, 197 throws that season): 21.3%.
+
+## Why throw_in_retention_allowed is not on the player report
+
+It measures the opponents' throw-ins across every fixture the player
+appeared in. The player's own actions never enter the calculation, so the
+only thing that varies between teammates is which matches they played.
+
+On the Bundesliga 2023/24 slice all 24 Leverkusen players who have a
+value sit in a narrow band, and the ten with the most minutes span 2.1
+percentage points:
+
+| Player | n | Value |
+|---|---|---|
+| Hrádecký | 492 | 69.9% |
+| Tah | 468 | 70.1% |
+| Frimpong | 465 | 69.9% |
+| Xhaka | 485 | 68.7% |
+| Wirtz | 476 | 68.7% |
+| Andrich | 419 | 68.0% |
+
+The full range across the squad is 40.0-77.0, and that spread comes
+entirely from players with few appearances and small denominators — noise
+in the sample, not a property of the player.
+
+It was rendering on every individual report at effectively the same
+value. Labelling it "(team)" and leaving it in place would have been
+worse than removing it: a row the reader has to learn to ignore on every
+report costs attention on every report. The metric is a real measurement
+of how a side defends opposition throws and is retained for a team page.

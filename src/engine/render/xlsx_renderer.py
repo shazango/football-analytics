@@ -26,13 +26,18 @@ def _display_value(entry: dict):
 def _write_metric_table(sheet, rows: list[dict], bold, has_benchmark: bool) -> None:
     headers = ["Metric", "Value", "Unit", "CI low", "CI high", "Sample size", "Min sample"]
     if has_benchmark:
-        headers += ["Comparison", "Percentile", "Benchmark n"]
+        # Percentile is written raw, in 0-1, not rounded to a display
+        # precision here: rounding is a presentation decision (it produced
+        # "85.7" against a set of seven), and a spreadsheet can format a
+        # number itself. The Comparison column carries the reader-facing
+        # form.
+        headers += ["Comparison", "Percentile (0-1)", "Benchmark n"]
     for col, header in enumerate(headers):
         sheet.write(0, col, header, bold)
     for r, entry in enumerate(rows, start=1):
         sheet.write(r, 0, entry["title"])
         sheet.write(r, 1, _display_value(entry))
-        sheet.write(r, 2, entry.get("unit") or ("per 90" if entry.get("adjustment") == "per_90" else ""))
+        sheet.write(r, 2, entry["unit_label"])
         sheet.write(r, 3, entry.get("ci_low") if entry.get("ci_low") is not None else "")
         sheet.write(r, 4, entry.get("ci_high") if entry.get("ci_high") is not None else "")
         sheet.write(r, 5, entry["sample_size"])
@@ -48,7 +53,7 @@ def _write_metric_table(sheet, rows: list[dict], bold, has_benchmark: bool) -> N
                 # The same sentence fragment the PDF prints, plus the raw
                 # percentile for anyone building on the sheet.
                 sheet.write(r, 7, entry.get("benchmark_comparison") or "n/a")
-                sheet.write(r, 8, round(pct * 100, 1) if pct is not None else "n/a")
+                sheet.write(r, 8, pct if pct is not None else "n/a")
             sheet.write(r, 9, entry.get("benchmark_n", "n/a"))
 
 
@@ -63,7 +68,7 @@ def render_xlsx(report: dict, path: Path) -> None:
         ("Position bucket", report["position_bucket"]),
         ("Competition", report["competition"]["name"]),
         ("Season", report["competition"]["season"]),
-        ("Minutes", round(report["minutes"], 1)),
+        ("Minutes", report["display_minutes"]),
         ("Generated at", report["generated_at"]),
         ("Attribution", report["attribution"]),
     ]
@@ -97,13 +102,15 @@ def render_xlsx(report: dict, path: Path) -> None:
             ])
             r += 1
     if r == 1:
-        claims_sheet.write(
-            1, 0,
-            f"No claim in this report is supported by the data — "
-            f"{claims['suppressed']} of {claims['suppressed'] + claims['eligible']} "
-            "foundation metrics fall below their sample threshold or have too "
-            "small a comparison set to rank against.",
-        )
+        # The same sentence the PDF prints — composed once in build_claims,
+        # because each renderer writing its own version is how the summary
+        # and the table came to disagree in the first place.
+        claims_sheet.write(1, 0, claims["none_supported"])
+    for note in claims["caveats"]:
+        claims_sheet.write(r, 0, note)
+        r += 1
+    if claims["no_comparison"]:
+        claims_sheet.write(r, 0, claims["no_comparison"])
 
     foundation_sheet = workbook.add_worksheet("Foundation Metrics")
     _write_metric_table(foundation_sheet, report["foundation_metrics"], bold, has_benchmark=True)

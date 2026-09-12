@@ -47,7 +47,7 @@
 #linebreak()
 #text(size: 9pt, fill: rgb("#555555"))[
   #report.primary_position (#report.position_bucket)
-  · #calc.round(report.minutes, digits: 0) minutes
+  · #report.display_minutes minutes
   · #report.competition.name #report.competition.season
 ]
 
@@ -70,24 +70,13 @@
     ]
   ]
 ] else [
-  #muted[
-    No claim in this report is supported by the data. Of
-    #(claims.suppressed + claims.eligible) foundation metrics,
-    #claims.suppressed fall below their sample threshold or have too small a
-    comparison set to rank against. The tables below show what was measured.
-  ]
+  #muted[#claims.none_supported The tables below show what was measured.]
 ]
 
-#block(above: 8pt)[
-  #set text(size: 7pt, fill: rgb("#777777"))
-  #if claims.suppressed > 0 [
-    #claims.suppressed of #(claims.suppressed + claims.eligible) foundation
-    metrics could not be judged — sample or comparison set too small.
-  ]
-  #if claims.not_notable > 0 [
-    #claims.not_notable sat outside the typical band but within
-    #claims.notable_distance_mads MAD of the positional median — too close to
-    assert.
+#if claims.caveats.len() > 0 [
+  #block(above: 8pt)[
+    #set text(size: 7pt, fill: rgb("#777777"))
+    #claims.caveats.join(" ")
   ]
 ]
 
@@ -104,10 +93,12 @@
   else { [#m.benchmark_comparison] }
 }
 
+// The number alone — the unit is its own column, so a column of values
+// aligns on the digits instead of being pushed around by "per 90".
 #let value-cell(m) = {
-  if m.display_value == none { muted[no data] }
+  if m.display_number == none { muted[no data] }
   else if m.suppressed { muted[insufficient sample] }
-  else { mono(m.display_value) }
+  else { mono(m.display_number) }
 }
 
 #let metric-table(rows, with-benchmark) = {
@@ -116,23 +107,23 @@
   // last column, which is how the panel tables drifted out of step with
   // the foundation one.
   let headers = if with-benchmark {
-    ([Metric], [Value], [Comparison], [Sample], [Methodology])
-  } else { ([Metric], [Value], [Sample], [Methodology]) }
+    ([Metric], [Value], [Unit], [Comparison], [Sample], [Methodology])
+  } else { ([Metric], [Value], [Unit], [Sample], [Methodology]) }
   // Both "insufficient sample" and "82nd percentile of 60" have to fit on
   // one line: wrapped, they double the row height, and a table full of
   // them (the goalkeeper's) reads as a mess rather than a considered
   // result.
   let columns = if with-benchmark {
-    (1fr, 8.6em, 10.2em, 3.6em, 13.5em)
+    (1fr, 6.2em, 3.4em, 10.2em, 3.6em, 13.5em)
   } else {
     // No Comparison column here, so the spare width goes to Value: a
     // bootstrap metric prints "0.167 per 90 (0.0304 to 0.298)" and the
     // interval is part of the value, not an optional extra to wrap away.
-    (1fr, 15.6em, 3.6em, 12em)
+    (1fr, 12.4em, 3.4em, 3.6em, 12em)
   }
   let alignment = if with-benchmark {
-    (left, right, right, right, left)
-  } else { (left, right, right, left) }
+    (left, right, left, right, right, left)
+  } else { (left, right, left, right, left) }
   table(
     columns: columns,
     stroke: (x, y) => (bottom: 0.4pt + rgb("#d8d8d8")),
@@ -142,6 +133,7 @@
     ..rows.map(m => (
       [#m.title],
       value-cell(m),
+      text(size: 7pt, fill: rgb("#777777"))[#m.unit_label],
       ..if with-benchmark { (comparison-cell(m),) } else { () },
       count(m.sample_size),
       text(size: 6.5pt, fill: rgb("#777777"))[#m.methodology],
@@ -152,16 +144,17 @@
 #section[Foundation metrics]
 #metric-table(report.foundation_metrics, true)
 
-#let no-comparison = report.claims.benchmark_suppressed_count
-#if no-comparison > 0 [
-  #block(above: 4pt)[
-    #set text(size: 7pt, fill: rgb("#777777"))
-    Comparison unavailable for #no-comparison of
-    #report.foundation_metrics.len() metrics: fewer than
-    #report.foundation_metrics.at(0).benchmark_min_n qualifying players in the
-    #report.position_bucket bucket for this competition and season. The values
-    themselves are measured and shown; only the ranking is withheld.
-  ]
+#block(above: 4pt)[
+  #set text(size: 7pt, fill: rgb("#777777"))
+  #if claims.no_comparison != none [#claims.no_comparison #linebreak()]
+  // Both progression metrics sit in the table above and a reader will
+  // assume they are measured alike. They are not, and the difference
+  // changes what a high number means.
+  Progressive passes count only completed passes, so they record
+  *successful* progression; progressive carries have no completion outcome
+  in the data, so a carry ending in a tackle still counts for the ground it
+  covered — they record *attempted* progression. See
+  docs/metrics/progressive_carries.md.
 ]
 
 // --- position panel --------------------------------------------------
@@ -194,7 +187,9 @@
   inset: (x: 4pt, y: 3pt),
   align: (left,) + buckets.map(_ => right),
   table.header(
-    text(weight: "bold", size: 8.5pt)[Stat],
+    // Every cell in this table is a per-90 rate, so the unit belongs once
+    // in the header rather than as a column repeated across five buckets.
+    text(weight: "bold", size: 8.5pt)[Stat (per 90)],
     ..buckets.map(b => text(weight: "bold", size: 8.5pt)[#b.replace("_", " ")]),
   ),
   ..stats.map(s => ([#s], ..buckets.map(b => cell(s, b)))).flatten(),

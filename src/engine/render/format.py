@@ -31,6 +31,15 @@ UNIT_SUFFIX = {
     None: "",
 }
 
+# The same units as a standalone column label. Tables print the number and
+# the unit separately so a column of values aligns on the digits; prose
+# uses UNIT_SUFFIX and carries the unit inline.
+UNIT_LABEL = {
+    "percent": "%",
+    "metres": "m",
+    None: "",
+}
+
 
 def significant(value: float, figures: int = 3) -> str:
     """Three significant figures, trailing zeros kept.
@@ -43,6 +52,36 @@ def significant(value: float, figures: int = 3) -> str:
         return "0." + "0" * (figures - 1)
     digits = max(0, (figures - 1) - math.floor(math.log10(abs(value))))
     return f"{value:.{digits}f}"
+
+
+def unit_label(unit: str | None = None, adjustment: str | None = None) -> str:
+    """What the Unit column says for this metric.
+
+    A per-90 rate repeated down a Value column ("1.31 per 90" fifteen
+    times) is noise, and it breaks the numeric alignment that makes a
+    column scannable. It cannot move to the column header either: the
+    goalkeeper panel mixes a per-90 rate with a dimensionless xG-per-shot
+    and two percentages, so no single default is true for the table.
+    """
+    if unit is not None:
+        if unit not in UNIT_LABEL:
+            raise ValueError(f"unknown unit '{unit}' (known: {sorted(k for k in UNIT_LABEL if k)})")
+        return UNIT_LABEL[unit]
+    return "per 90" if adjustment == "per_90" else ""
+
+
+def format_number(
+    value: float | None, ci_low: float | None = None, ci_high: float | None = None
+) -> str | None:
+    """The number alone, for a table cell that has a Unit column beside
+    it. The interval stays attached: it is part of the value (brief §6),
+    not a unit."""
+    if value is None:
+        return None
+    text = significant(value)
+    if ci_low is not None and ci_high is not None:
+        text += f" ({significant(ci_low)} to {significant(ci_high)})"
+    return text
 
 
 def format_value(

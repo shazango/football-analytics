@@ -181,6 +181,44 @@ def _claim(entry: dict, bands: VerdictBands, noun: str) -> dict:
     }
 
 
+def _notes(counts: dict, position_bucket: str, bands: VerdictBands) -> dict:
+    """The sentences a report says about its own gaps.
+
+    Built here rather than in each renderer: the PDF and the spreadsheet
+    were each composing their own version of "N of M could not be judged",
+    which is the same duplication that let the summary and the table
+    disagree about an ordinal.
+    """
+    judged = counts["suppressed"] + counts["eligible"]
+    caveats = []
+    if counts["suppressed"]:
+        caveats.append(
+            f"{counts['suppressed']} of {judged} foundation metrics could not be "
+            "judged — sample or comparison set too small."
+        )
+    if counts["not_notable"]:
+        caveats.append(
+            f"{counts['not_notable']} sat outside the typical band but within "
+            f"{bands.notable_distance_mads} MAD of the positional median — too "
+            "close to assert."
+        )
+    return {
+        "caveats": caveats,
+        "none_supported": (
+            "No claim in this report is supported by the data. Of "
+            f"{judged} foundation metrics, {counts['suppressed']} fall below their "
+            "sample threshold or have too small a comparison set to rank against."
+        ),
+        "no_comparison": (
+            f"Comparison unavailable for {counts['benchmark_suppressed_count']} of "
+            f"{counts['total']} metrics: fewer than {counts['benchmark_min_n']} "
+            f"qualifying players in the {position_bucket} bucket for this competition "
+            "and season. The values themselves are measured and shown; only the "
+            "ranking is withheld."
+        ) if counts["benchmark_suppressed_count"] else None,
+    }
+
+
 def build_claims(
     foundation_metrics: list[dict], position_bucket: str, bands: VerdictBands
 ) -> dict:
@@ -196,7 +234,7 @@ def build_claims(
         selected.sort(key=_sort_distance, reverse=True)
         return selected[:MAX_CLAIMS_PER_DIRECTION]
 
-    return {
+    result = {
         "band_version": bands.version,
         "methodology": bands.methodology,
         # Carried so the JSON says which floor filtered it, not only which
@@ -223,6 +261,19 @@ def build_claims(
             1 for e in foundation_metrics if e.get("benchmark_suppressed")
         ),
     }
+    result.update(_notes(
+        {
+            **result,
+            "total": len(foundation_metrics),
+            "benchmark_min_n": next(
+                (e["benchmark_min_n"] for e in foundation_metrics if "benchmark_min_n" in e),
+                None,
+            ),
+        },
+        position_bucket,
+        bands,
+    ))
+    return result
 
 
 def benchmark_stats(values: list[float], value: float | None) -> dict:

@@ -35,7 +35,13 @@ from engine.metrics.benchmark import (
 from engine.metrics.definitions import load_all
 from engine.metrics.runtime import compute_and_store
 from engine.render.claims import benchmark_stats, build_claims, load_bands
-from engine.render.format import comparison_short, format_value
+from engine.render.format import (
+    comparison_short,
+    format_number,
+    format_value,
+    significant,
+    unit_label,
+)
 
 ATTRIBUTION = (
     "Data: StatsBomb Open Data "
@@ -47,10 +53,16 @@ GK_PANEL_STAT_IDS = [
     "defensive_shots_central_share", "defensive_shots_unpressured_share",
 ]
 FW_PANEL_STAT_IDS = ["supply_assisted_xg_share", "supply_top_supplier_share", "supply_herfindahl_index"]
+# throw_in_retention_allowed is deliberately absent: it measures the
+# retention rate of the *opponents'* throws across every fixture the
+# player appeared in, so the player's own actions never enter it. On the
+# Bundesliga 2023/24 slice the ten highest-minute Leverkusen players span
+# 2.1 percentage points (68.0-70.1) — it varies with which matches you
+# played, not with you. The metric and its methodology page are kept; it
+# belongs on a team page. See docs/metrics/throw_in_profile.md.
 THROW_IN_STAT_IDS = [
     "throw_in_retention_under_pressure", "throw_in_retention_rate", "throw_in_distance",
     "throw_in_territory_gained", "throw_in_aerial_win_rate", "throw_in_clever_share",
-    "throw_in_retention_allowed",
 ]
 GAME_STATE_STAT_IDS = ["shots", "duels_won", "tackles"]
 GAME_STATE_BUCKETS = ["leading", "level", "trailing_1", "trailing_2plus", "after_conceding_10min"]
@@ -79,6 +91,9 @@ def _metric_entry(con, defn, person_id, competition_id, season, adjustment=None)
         "display_value": format_value(
             result.value, defn.unit, adjustment, result.ci_low, result.ci_high
         ),
+        # Tables print these two side by side; prose uses display_value.
+        "display_number": format_number(result.value, result.ci_low, result.ci_high),
+        "unit_label": unit_label(defn.unit, adjustment),
         "methodology": defn.methodology,
         "definition_version": defn.version,
         "computed_at": result.computed_at,
@@ -175,6 +190,8 @@ def build_report(con, person_id: int, competition_id: str, season: str) -> dict:
                 "display_value": format_value(
                     result.value, defn.unit, "per_90", result.ci_low, result.ci_high
                 ),
+                "display_number": format_number(result.value, result.ci_low, result.ci_high),
+                "unit_label": unit_label(defn.unit, "per_90"),
                 "computed_at": result.computed_at,
                 "input_hash": result.input_hash,
             })
@@ -186,6 +203,9 @@ def build_report(con, person_id: int, competition_id: str, season: str) -> dict:
         "position_bucket": bucket,
         "competition": {"id": competition_id, "name": comp_name, "season": comp_season},
         "minutes": total_minutes,
+        # Rounded once: the PDF said 3018 and the spreadsheet 3017.8 for
+        # the same player, each having rounded it themselves.
+        "display_minutes": significant(total_minutes, figures=4),
         "foundation_metrics": foundation_metrics,
         "claims": build_claims(foundation_metrics, bucket, load_bands()),
         "position_panel": position_panel,

@@ -41,8 +41,14 @@ GOAL_CENTER_Y = 50.0
 POST_Y_LOW = 45.0
 POST_Y_HIGH = 55.0
 TRAFFIC_CORRIDOR_WIDTH = 5.0  # perpendicular distance (of 100) counted as "in the way"
-CENTRAL_ZONE_Y_LOW = 30.0
-CENTRAL_ZONE_Y_HIGH = 70.0
+# Goal width, not a round number: inside the posts the keeper is covering
+# the frame, outside them they are covering an angle. Derived from an
+# 80-unit pitch width normalised to 0-100, goalposts 7.32m apart.
+# v1 used the central 40% of the pitch (30-70), which contained 92.6% of
+# every shot in the warehouse and so could not separate anybody — see
+# docs/metrics/defensive_context.md.
+CENTRAL_ZONE_Y_LOW = 36.25
+CENTRAL_ZONE_Y_HIGH = 63.75
 
 FEATURE_COLUMNS = [
     "distance_to_goal",

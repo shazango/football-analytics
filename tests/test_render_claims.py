@@ -20,8 +20,10 @@ from engine.render.claims import (
 from engine.render.format import (
     ORDINAL_BELOW_N,
     comparison_short,
+    format_number,
     format_value,
     ordinal,
+    unit_label,
 )
 
 BANDS = load_bands()
@@ -54,6 +56,8 @@ def _entry(**overrides) -> dict:
         format_value(entry["value"], entry["unit"], entry["adjustment"]),
     )
     entry.setdefault("benchmark_comparison", comparison_short(entry))
+    entry.setdefault("display_number", format_number(entry["value"]))
+    entry.setdefault("unit_label", unit_label(entry["unit"], entry["adjustment"]))
     return entry
 
 
@@ -325,7 +329,7 @@ def test_all_three_renderers_carry_identical_claims(tmp_path):
         "person_id": 1, "name": "Test Player", "primary_position": "Center Midfield",
         "position_bucket": "MF",
         "competition": {"id": "C1", "name": "Comp", "season": "S1"},
-        "minutes": 3018.0,
+        "minutes": 3018.0, "display_minutes": "3018",
         "foundation_metrics": [_entry(), _entry(
             id="xg", title="Expected goals", value=0.047, benchmark_percentile=0.0,
             benchmark_median=0.2, benchmark_mad=0.05, benchmark_rank=7)],
@@ -425,3 +429,35 @@ def test_a_bootstrap_metric_cannot_be_formatted_without_its_interval():
 def test_unknown_unit_is_rejected():
     with pytest.raises(ValueError, match="furlongs"):
         format_value(1.0, "furlongs")
+
+
+def test_renderers_do_not_build_display_strings_of_their_own():
+    """Presentation is recomputation (brief §9).
+
+    Three independent copies of the same formatting have already been
+    found — the Typst table's ordinal, the XLSX claims sheet's comparison,
+    and both renderers composing "N of M could not be judged" — so this
+    checks by inspection rather than waiting for the fourth. A renderer
+    may lay a string out; it may not compose one from numbers.
+    """
+    import re
+
+    render_dir = Path(__file__).parent.parent / "src" / "engine" / "render"
+    banned = {
+        # (pattern, what it would mean)
+        r"\bround\(": "rounds a number instead of printing a display_* string",
+        r"%\.\d": "applies a printf format to a value",
+        r"\bordinal\b": "builds an ordinal outside format.py",
+    }
+    offenders = []
+    for path in [*render_dir.glob("*.py"), *(render_dir / "templates").glob("*.typ")]:
+        if path.name in {"format.py", "claims.py", "report.py"}:
+            continue  # where strings are legitimately composed
+        source = path.read_text()
+        for pattern, reason in banned.items():
+            for line in source.splitlines():
+                if line.strip().startswith(("#", "//")):
+                    continue
+                if re.search(pattern, line):
+                    offenders.append(f"{path.name}: {line.strip()[:70]} — {reason}")
+    assert not offenders, "renderer builds its own display string:\n" + "\n".join(offenders)
